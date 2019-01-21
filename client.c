@@ -50,16 +50,20 @@ int createConnection(struct strand *s) {
 }
 
 int effect(struct strand *strands, int cnt) {
-	char matrix[kStrandCnt][kLEDCnt*3];
+	char matrix[cnt][kLEDCnt*3];
+	int last[cnt];
+	int done = 0;
 
-	for (int i = 0; i < cnt; ++i)
+	for (int i = 0; i < cnt; ++i) {
 		memset(matrix[i], 0, kLEDCnt*3);
+		last[i] = kLEDCnt - 1;
+	}
 
-	for (int c = 0; c < 500; ++c) {
+	do {
 		for (int i = 0; i < cnt; ++i) {
 			struct pixel *p = (struct pixel *)matrix[i];
 
-			for (int j = kLEDCnt - 1; j > 0; j--) {
+			for (int j = last[i] - 1; j > 0; j--) {
 				p[j].r = p[j - 1].r;
 				p[j].g = p[j - 1].g;
 				p[j].b = p[j - 1].b;
@@ -70,17 +74,25 @@ int effect(struct strand *strands, int cnt) {
 			} else {
 				p[0].g = 0;
 			}
+
+			if (p[last[i] - 1].g != 0)
+				last[i]--;
 		}
 
 
-		for (int i = 0; i < kStrandCnt; ++i)
+		for (int i = 0; i < cnt; ++i)
 			if (send(strands[i].sock, matrix[i], kLEDCnt*3, 0) < 0) {
 				puts("Send failed");
 				return 1;
 			}
 
 		usleep(100000);
-	}
+
+		done = 1;
+		for (int i = 0; i < cnt; ++i) {
+			done &= (last[i] == 0);
+		}
+	} while(!done);
 
 	return 0;
 }
@@ -88,8 +100,6 @@ int effect(struct strand *strands, int cnt) {
 int main(int argc, char* argv[])
 {
 	struct strand strands[kStrandCnt];
-	int socks[3];
-	int server_reply[10];
 
 	strands[0].host = 201;
 	strands[1].host = 200;
