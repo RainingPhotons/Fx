@@ -1,5 +1,5 @@
 CC=gcc
-
+CFLAGS=-Wall
 OBJ=client.o 
 
 %.o: %.c
