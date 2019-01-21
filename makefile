@@ -1,12 +1,12 @@
-CC=gcc
+CPP=g++
 CFLAGS=-Wall
 OBJ=client.o 
 
 %.o: %.c
-	$(CC) -c -o $@ $^ $(CFLAGS)
+	$(CPP) -c -o $@ $^ $(CFLAGS)
 
 lights: $(OBJ)
-	$(CC) -o $@ $^ $(CFLAGS)
+	$(CPP) -o $@ $^ $(CFLAGS)
 
 .PHONY: clean
 

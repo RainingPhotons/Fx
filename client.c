@@ -20,6 +20,71 @@ struct pixel {
 	char b;
 };
 
+#define for_x for (int x = 0; x < w; x++)
+#define for_y for (int y = 0; y < h; y++)
+#define for_xy for_x for_y
+class matrix {
+public:
+    matrix(int w, int h)
+        : w_(w),
+          h_(3*h) {
+        storage_ = new char[w_*h_]();
+    }
+    ~matrix() {
+        delete storage_;
+    }
+
+    void set(int x, int y, char val) {
+        storage_[(x * h_) + (3 * y)] = val;
+    }
+
+    char get(int x, int y) {
+        return storage_[(x * h_) + (3 * y)];
+    }
+
+    char *column(int x) {
+        return storage_ + (x * h_);
+    }
+
+    void show() {
+        printf("\033[H");
+        for (int y = 0; y < (h_/3); y++) {
+            for (int x = 0; x < w_; x++)
+                printf(get(x,y) ? "\033[07m  \033[m" : "  ");
+            printf("\033[E");
+        }
+        fflush(stdout);
+    }
+
+	matrix& operator=(const matrix &other) {
+		memcpy(storage_, other.storage_, w_ * h_);
+		return *this;
+	}
+
+ private:
+    char *storage_;
+    int w_;
+    int h_;
+};
+
+
+void evolve(matrix &univ, int w, int h)
+{
+    matrix n(w, h);
+
+    for_y for_x {
+        int v = 0;
+        for (int y1 = y - 1; y1 <= y + 1; y1++)
+            for (int x1 = x - 1; x1 <= x + 1; x1++)
+                if (univ.get((x1 + w) % w, (y1 + h) % h))
+                    v++;
+
+        if (univ.get(x,y)) v--;
+        n.set(x,y,(v == 3 || (v == 2 && univ.get(x,y))));
+    }
+    univ = n;
+}
+
 int rand_num(int max, int min) {
 	return rand() % (max - min + 1) + min;
 }
@@ -50,49 +115,20 @@ int createConnection(struct strand *s) {
 }
 
 int effect(struct strand *strands, int cnt) {
-	char matrix[cnt][kLEDCnt*3];
-	int last[cnt];
-	int done = 0;
-
-	for (int i = 0; i < cnt; ++i) {
-		memset(matrix[i], 0, kLEDCnt*3);
-		last[i] = kLEDCnt - 1;
-	}
-
-	do {
-		for (int i = 0; i < cnt; ++i) {
-			struct pixel *p = (struct pixel *)matrix[i];
-
-			for (int j = last[i] - 1; j > 0; j--) {
-				p[j].r = p[j - 1].r;
-				p[j].g = p[j - 1].g;
-				p[j].b = p[j - 1].b;
-			}
-
-			if (rand_num(5, 0) == 0) {
-				p[0].g = rand_num(255, 0);
-			} else {
-				p[0].g = 0;
-			}
-
-			if (p[last[i] - 1].g != 0)
-				last[i]--;
-		}
-
-
+	const int w = 5;
+	const int h = kLEDCnt;
+    matrix univ(w, h);
+    for_xy univ.set(x,y,rand() < RAND_MAX / 10 ? 1 : 0);
+    for (int c = 0; c < 500; ++c) {
+        univ.show();
 		for (int i = 0; i < cnt; ++i)
-			if (send(strands[i].sock, matrix[i], kLEDCnt*3, 0) < 0) {
+			if (send(strands[i].sock, univ.column(i+1), kLEDCnt*3, 0) < 0) {
 				puts("Send failed");
 				return 1;
 			}
-
-		usleep(100000);
-
-		done = 1;
-		for (int i = 0; i < cnt; ++i) {
-			done &= (last[i] == 0);
-		}
-	} while(!done);
+        evolve(univ, w, h);
+        usleep(200000);
+    }
 
 	return 0;
 }
