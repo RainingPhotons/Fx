@@ -1,5 +1,5 @@
 CPP=g++
-CFLAGS=-Wall
+CFLAGS=-Wall -g
 OBJ=client.o 
 
 %.o: %.c
