@@ -13,151 +13,57 @@ struct strand {
   int host;
 };
 
-template <class T>
-class matrix {
- public:
-  matrix(int w, int h)
-    : w_(w),
-      h_(h) {
-    storage_ = new T[w_*h_]();
-  }
-  ~matrix() {
-    delete storage_;
-  }
+void fadeToBlack(char *leds, int num, char fadeValue) {
+  uint8_t r, g, b;
 
-  void set(int x, int y, T val) {
-    storage_[(x * h_) + y] = val;
-  }
+  r = leds[num * 3 + 0];
+  g = leds[num * 3 + 1];
+  b = leds[num * 3 + 2];
 
-  T get(int x, int y) {
-    return storage_[(x * h_) + y];
-  }
+  r=(r<=10)? 0 : (int) r-(r*fadeValue/256);
+  g=(g<=10)? 0 : (int) g-(g*fadeValue/256);
+  b=(b<=10)? 0 : (int) b-(b*fadeValue/256);
 
-  T *column(int x) {
-    return storage_ + (x * h_);
-  }
-
-  void show() {
-    int max_display_height = h_;
-    if (max_display_height > 50)
-      max_display_height = 50;
-    printf("\033[H");
-    for (int y = 0; y < max_display_height; y++) {
-      for (int x = 0; x < w_; x++) {
-        double intensity = get(x,y);
-        if (intensity < 0.01)
-          intensity = 0.0;
-        printf("\033[38;5;%dm",(int)(intensity*255));
-        printf(get(x,y) ? "\033[07m  \033[m" : "  ");
-        printf("\033[0m");
-      }
-      printf("\033[E");
-    }
-    fflush(stdout);
-  }
-
-  matrix& operator=(const matrix &other) {
-    memcpy(storage_, other.storage_, w_ * h_ * sizeof(T));
-    return *this;
-  }
- private:
-  T *storage_;
-  int w_;
-  int h_;
-};
-
-
-void evolve(matrix<double> &current, matrix<double> &previous, int w, int h) {
-  double damping = 0.8;
-
-  for (int y = 1; y < h - 1; y++) {
-    for (int x = 1; x < w - 1; x++) {
-      double sum = previous.get(x-1, y) + previous.get(x+1,y) +
-                   previous.get(x,y+1) + previous.get(x,y-1) +
-                   previous.get(x-1,y-1) + previous.get(x-1,y+1) +
-                   previous.get(x+1,y-1) + previous.get(x+1,y+1);
-      double result = (sum / 4.0) - current.get(x,y);
-      double particle = result * damping;
-      current.set(x, y, particle);
-    }
-  }
+  leds[num * 3 + 0] = r;
+  leds[num * 3 + 1] = g;
+  leds[num * 3 + 2] = b;
 }
 
-void convert(char *leds, double *particle, int length) {
-  for (int i = 0; i < length; ++i) {
-    double p = particle[i];
-    double hue = p * 360;
-    double saturation = 1.0;
-    double value = 0.75;
+void effect(struct strand *s, int w, int h) {
+  char matrix[kStrandCnt][kLEDCnt * 3];
+  int meteorTrailDecay = 64;
+  int meteorRandomDecay = 1;
+  int meteorSize = 10;
 
-    double chroma = value * saturation;
-    double hue1 = hue / 60.0;
-    double x = chroma * (1 - fabs(fmod(hue1, 2.0) - 1));
-    double r1, g1, b1;
-
-    if (hue1 >= 0.0 && hue1 <= 1.0) {
-      r1 = chroma;
-      g1 = x;
-      b1 = 0.0;
-    } else if (hue1 >= 1.0 && hue1 <= 2.0) {
-      r1 = x;
-      g1 = chroma;
-      b1 = 0.0;
-    } else if (hue1 >= 2.0 && hue1 <= 3.0) {
-      r1 = 0.0;
-      g1 = chroma;
-      b1 = x;
-    } else if (hue1 >= 3.0 && hue1 <= 4.0) {
-      r1 = 0.0;
-      g1 = x;
-      b1 = chroma;
-    } else if (hue1 >= 4.0 && hue1 <= 5.0) {
-      r1 = x;
-      g1 = 0.0;
-      b1 = chroma;
-    } else if (hue1 >= 5.0 && hue1 <= 6.0) {
-      r1 = chroma;
-      g1 = 0.0;
-      b1 = x;
+  for (int i = 0; i < kStrandCnt; ++i)
+    for (int j = 0; j < kLEDCnt; ++j) {
+      matrix[i][j *3 + 0] = 0x0;
+      matrix[i][j *3 + 1] = 0x0;
+      matrix[i][j *3 + 2] = 0x0;
     }
 
-    double m = value - chroma;
-    r1 += m;
-    g1 += m;
-    b1 += m;
-
-    if (p < 0.01) {
-      r1 = 0.0;
-      g1 = 0.0;
-      b1 = 0.0;
-    }
-
-    leds[i * 3 + 0] = (char)(255.0 * r1);
-    leds[i * 3 + 1] = (char)(255.0 * g1);
-    leds[i * 3 + 2] = (char)(255.0 * b1);
-  }
-}
-
-void game(struct strand *s, int w, int h) {
-  matrix<double> current(w, h);
-  matrix<double> previous(w, h);
-  current.set(2,10,255.0);
-  for (int c = 0; c < 5000; ++c) {
-    current.show();
+  for (int j = 0; j < kLEDCnt + kLEDCnt; ++j) {
     for (int i = 0; i < kStrandCnt; ++i) {
-      char leds[kLEDCnt * 3];
-      convert(leds, current.column(i + 1), h);
-      if (send(s[i].sock, leds, kLEDCnt*3, 0) < 0) {
+      for (int k = 0; k < kLEDCnt; ++k) {
+        if ((!meteorRandomDecay) || ((rand() % 10) > 5)) {
+          fadeToBlack(matrix[i], k, meteorTrailDecay);
+        }
+      }
+
+      for (int k = 0; k < meteorSize; ++k) {
+        if ((j - k < kLEDCnt) && (j - k >= 0)) {
+          matrix[i][(j - k) * 3 + 0] = 0xff;
+          matrix[i][(j - k) * 3 + 1] = 0xff;
+          matrix[i][(j - k) * 3 + 2] = 0xff;
+        }
+      }
+
+      if (send(s[i].sock, matrix[i], kLEDCnt*3, 0) < 0) {
         fprintf(stderr, "Send failed");
         return;
       }
+      usleep(8000);
     }
-
-    if (c & 1)
-      evolve(current, previous, w, h);
-    else
-      evolve(previous, current, w, h);
-    usleep(200000);
   }
 }
 
@@ -193,14 +99,14 @@ int main(int c, char **v) {
 
   struct strand strands[kStrandCnt];
 
-  strands[0].host = 201;
-  strands[1].host = 200;
-  strands[2].host = 213;
+  strands[0].host = 209;
+  strands[1].host = 205;
+  strands[2].host = 218;
 
   for (int i = 0; i < kStrandCnt; ++i)
     createConnection(&strands[i]);
 
-  game(strands, w, h);
+  effect(strands, w, h);
 
   for (int i = 0; i < kStrandCnt; ++i)
     close(strands[i].sock);
