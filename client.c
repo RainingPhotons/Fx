@@ -33,25 +33,31 @@ void effect(struct strand *s, int broadcast) {
   char matrix[kStrandCnt][kLEDCnt * 3];
   int meteorTrailDecay = 64;
   int meteorRandomDecay = 1;
-  int meteorSize = 10;
+  int meteorSize[kStrandCnt];
+  float rate[kStrandCnt];
 
-  for (int i = 0; i < kStrandCnt; ++i)
+
+  for (int i = 0; i < kStrandCnt; ++i) {
     for (int j = 0; j < kLEDCnt; ++j) {
       int pixel = j * 3;
       matrix[i][pixel + 0] = 0x0;
       matrix[i][pixel + 1] = 0x0;
       matrix[i][pixel + 2] = 0x0;
     }
+    rate[i] = (rand() % 5 + 5.0) / 10;
+    meteorSize[i] = rand() % 10 + 5;
+  }
 
-  for (int j = 0; j < kLEDCnt + kLEDCnt; ++j) {
+  for (int o = 0; o < 3 * kLEDCnt; ++o) {
     for (int i = 0; i < kStrandCnt; ++i) {
+      int j = (int)(rate[i] * o);
       for (int k = 0; k < kLEDCnt; ++k) {
         if ((!meteorRandomDecay) || ((rand() % 10) > 5)) {
           fadeToBlack(matrix[i], k, meteorTrailDecay);
         }
       }
 
-      for (int k = 0; k < meteorSize; ++k) {
+      for (int k = 0; k < meteorSize[i]; ++k) {
         if ((j - k < kLEDCnt) && (j - k >= 0)) {
           int pixel = (kLEDCnt - (j - k) - 1) * 3;
           matrix[i][pixel + 0] = 0xff;
