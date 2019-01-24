@@ -37,9 +37,10 @@ void effect(struct strand *s, int broadcast) {
 
   for (int i = 0; i < kStrandCnt; ++i)
     for (int j = 0; j < kLEDCnt; ++j) {
-      matrix[i][j *3 + 0] = 0x0;
-      matrix[i][j *3 + 1] = 0x0;
-      matrix[i][j *3 + 2] = 0x0;
+      int pixel = j * 3;
+      matrix[i][pixel + 0] = 0x0;
+      matrix[i][pixel + 1] = 0x0;
+      matrix[i][pixel + 2] = 0x0;
     }
 
   for (int j = 0; j < kLEDCnt + kLEDCnt; ++j) {
@@ -52,9 +53,10 @@ void effect(struct strand *s, int broadcast) {
 
       for (int k = 0; k < meteorSize; ++k) {
         if ((j - k < kLEDCnt) && (j - k >= 0)) {
-          matrix[i][(j - k) * 3 + 0] = 0xff;
-          matrix[i][(j - k) * 3 + 1] = 0xff;
-          matrix[i][(j - k) * 3 + 2] = 0xff;
+          int pixel = (kLEDCnt - (j - k) - 1) * 3;
+          matrix[i][pixel + 0] = 0xff;
+          matrix[i][pixel + 1] = 0xff;
+          matrix[i][pixel + 2] = 0xff;
         }
       }
 
