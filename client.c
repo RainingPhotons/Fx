@@ -29,7 +29,7 @@ void fadeToBlack(char *leds, int num, char fadeValue) {
   leds[num * 3 + 2] = b;
 }
 
-void effect(struct strand *s, int w, int h) {
+void effect(struct strand *s, int broadcast) {
   char matrix[kStrandCnt][kLEDCnt * 3];
   int meteorTrailDecay = 64;
   int meteorRandomDecay = 1;
@@ -62,8 +62,13 @@ void effect(struct strand *s, int w, int h) {
         fprintf(stderr, "Send failed");
         return;
       }
-      usleep(8000);
     }
+    usleep(10000);
+    if (send(broadcast, "d255", 4, 0) < 0) {
+      fprintf(stderr, "Send failed");
+      return;
+    }
+    usleep(10000);
   }
 }
 
@@ -90,13 +95,35 @@ int createConnection(struct strand *s) {
   return 1;
 }
 
-int main(int c, char **v) {
-  int w = 0, h = 0;
-  if (c > 1) w = atoi(v[1]);
-  if (c > 2) h = atoi(v[2]);
-  if (w <= 0) w = 80;
-  if (h <= 0) h = 120;
+int createBroadcast() {
+  struct sockaddr_in server;
 
+  int sock = socket(AF_INET, SOCK_DGRAM, 0);
+  if (sock == -1) {
+    fprintf(stderr, "Could not create socket");
+    return -1;
+  }
+
+  int broadcast = 1;
+  if (setsockopt(sock, SOL_SOCKET, SO_BROADCAST,
+                 &broadcast, sizeof(broadcast)) == -1) {
+    perror("unable to broadcast");
+    return -1;
+  }
+
+  server.sin_addr.s_addr = htonl(INADDR_BROADCAST);
+  server.sin_family = AF_INET;
+  server.sin_port = htons(5000);
+
+  if (connect(sock, (struct sockaddr*)&server, sizeof(server)) < 0) {
+    perror("connect failed. Error");
+    return -1;
+  }
+
+  return sock;
+}
+
+int main(int c, char **v) {
   struct strand strands[kStrandCnt];
 
   strands[0].host = 209;
@@ -106,10 +133,13 @@ int main(int c, char **v) {
   for (int i = 0; i < kStrandCnt; ++i)
     createConnection(&strands[i]);
 
-  effect(strands, w, h);
+  int broadcast = createBroadcast();
+
+  effect(strands, broadcast);
 
   for (int i = 0; i < kStrandCnt; ++i)
     close(strands[i].sock);
+  close(broadcast);
 
   return 0;
 }
