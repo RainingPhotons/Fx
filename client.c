@@ -3,6 +3,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <time.h>
 #include <unistd.h>
 
 static const int kStrandCnt = 3;
@@ -12,6 +13,18 @@ struct strand {
   int sock;
   int host;
 };
+
+struct rgb {
+  uint8_t r;
+  uint8_t g;
+  uint8_t b;
+};
+
+void setPixel(char *led, struct rgb color) {
+  led[0] = color.r;
+  led[1] = color.g;
+  led[2] = color.b;
+}
 
 void fadeToBlack(char *leds, int num, char fadeValue) {
   uint8_t r, g, b;
@@ -35,7 +48,7 @@ void effect(struct strand *s, int broadcast) {
   int meteorRandomDecay = 1;
   int meteorSize[kStrandCnt];
   float rate[kStrandCnt];
-
+  struct rgb color[kStrandCnt];
 
   for (int i = 0; i < kStrandCnt; ++i) {
     for (int j = 0; j < kLEDCnt; ++j) {
@@ -46,6 +59,9 @@ void effect(struct strand *s, int broadcast) {
     }
     rate[i] = (rand() % 5 + 5.0) / 10;
     meteorSize[i] = rand() % 10 + 5;
+    color[0].r = rand() % 255;
+    color[0].g = rand() % 255;
+    color[0].b = rand() % 255;
   }
 
   for (int o = 0; o < 3 * kLEDCnt; ++o) {
@@ -60,9 +76,7 @@ void effect(struct strand *s, int broadcast) {
       for (int k = 0; k < meteorSize[i]; ++k) {
         if ((j - k < kLEDCnt) && (j - k >= 0)) {
           int pixel = (kLEDCnt - (j - k) - 1) * 3;
-          matrix[i][pixel + 0] = 0xff;
-          matrix[i][pixel + 1] = 0xff;
-          matrix[i][pixel + 2] = 0xff;
+          setPixel(&matrix[i][pixel], color[i]);
         }
       }
 
@@ -132,8 +146,9 @@ int createBroadcast() {
 }
 
 int main(int c, char **v) {
-  struct strand strands[kStrandCnt];
+  srand(time(0));
 
+  struct strand strands[kStrandCnt];
   strands[0].host = 209;
   strands[1].host = 205;
   strands[2].host = 218;
