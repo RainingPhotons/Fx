@@ -59,9 +59,9 @@ void effect(struct strand *s, int broadcast) {
     }
     rate[i] = (rand() % 5 + 5.0) / 10;
     meteorSize[i] = rand() % 10 + 5;
-    color[0].r = rand() % 255;
-    color[0].g = rand() % 255;
-    color[0].b = rand() % 255;
+    color[i].r = rand() % 255;
+    color[i].g = rand() % 255;
+    color[i].b = rand() % 255;
   }
 
   for (int o = 0; o < 3 * kLEDCnt; ++o) {
