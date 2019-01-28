@@ -5,7 +5,7 @@
 #include <string.h>
 #include <unistd.h>
 
-static const int kStrandCnt = 3;
+static const int kStrandCnt = 12;
 static const int kLEDCnt = 120;
 
 struct strand {
@@ -99,9 +99,18 @@ int main(int c, char **v) {
 
   struct strand strands[kStrandCnt];
 
-  strands[0].host = 209;
-  strands[1].host = 205;
-  strands[2].host = 218;
+  strands[ 0].host = 209;
+  strands[ 1].host = 203;
+  strands[ 2].host = 201;
+  strands[ 3].host = 219;
+  strands[ 4].host = 206;
+  strands[ 5].host = 204;
+  strands[ 6].host = 217;
+  strands[ 7].host = 212;
+  strands[ 8].host = 214;
+  strands[ 9].host = 215;
+  strands[10].host = 218;
+  strands[11].host = 205;
 
   for (int i = 0; i < kStrandCnt; ++i)
     createConnection(&strands[i]);
