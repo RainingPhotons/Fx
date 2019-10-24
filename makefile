@@ -1,6 +1,6 @@
 CPP=g++
 CFLAGS=-Wall -g
-OBJ=client.o 
+OBJ=client.o hsluv.o
 
 %.o: %.c
 	$(CPP) -c -o $@ $^ $(CFLAGS)
