@@ -16,7 +16,7 @@ struct strand {
 };
 
 void effect(struct strand *s) {
-  char matrix[kStrandCnt][kLEDCnt * 3];
+  double matrix[kStrandCnt][kLEDCnt * 3];
 
   for (int i = 0; i < kStrandCnt; ++i)
     for (int j = 0; j < kLEDCnt; ++j) {
@@ -26,15 +26,44 @@ void effect(struct strand *s) {
       l = 5;
       hsluv2rgb(h, s, l, &r, &g, &b);
 
-      matrix[i][j *3 + 0] = (int)(r * 255.0);
-      matrix[i][j *3 + 1] = (int)(g * 255.0);
-      matrix[i][j *3 + 2] = (int)(b * 255.0);
+      matrix[i][j * 3 + 0] = r;
+      matrix[i][j * 3 + 1] = g;
+      matrix[i][j * 3 + 2] = b;
     }
 
-  for (int i = 0; i < kStrandCnt; ++i) {
-    if (send(s[i].sock, matrix[i], kLEDCnt*3, 0) < 0) {
-      fprintf(stderr, "Send failed");
-      return;
+  for (int h = 0; h < 360; ++h) {
+    for (int i = 0; i < kStrandCnt; ++i) {
+      for (int j = 0; j < kLEDCnt; ++j) {
+        double h, s, l, r, g, b;
+
+        r = matrix[i][j * 3 + 0];
+        g = matrix[i][j * 3 + 1];
+        b = matrix[i][j * 3 + 2];
+        rgb2hsluv(r, g, b, &h, &s, &l);
+
+        h += 360.0 / kLEDCnt;
+
+        if (h > 360.0)
+          h -= 360.0;
+
+        hsluv2rgb(h, s, l, &r, &g, &b);
+
+        matrix[i][j * 3 + 0] = r;
+        matrix[i][j * 3 + 1] = g;
+        matrix[i][j * 3 + 2] = b;
+      }
+
+      char output_matrix[kLEDCnt * 3];
+      for (int j = 0; j < kLEDCnt * 3; ++j) {
+        output_matrix[j] = matrix[i][j] * 255.0;
+      }
+
+      if (send(s[i].sock, output_matrix, kLEDCnt*3, 0) < 0) {
+        fprintf(stderr, "Send failed");
+        return;
+      }
+
+      usleep(800);
     }
   }
 }
