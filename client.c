@@ -5,7 +5,9 @@
 #include <string.h>
 #include <unistd.h>
 
-static const int kStrandCnt = 12;
+#include "hsluv.h"
+
+static const int kStrandCnt = 20;
 static const int kLEDCnt = 120;
 
 struct strand {
@@ -13,56 +15,26 @@ struct strand {
   int host;
 };
 
-void fadeToBlack(char *leds, int num, char fadeValue) {
-  uint8_t r, g, b;
-
-  r = leds[num * 3 + 0];
-  g = leds[num * 3 + 1];
-  b = leds[num * 3 + 2];
-
-  r=(r<=10)? 0 : (int) r-(r*fadeValue/256);
-  g=(g<=10)? 0 : (int) g-(g*fadeValue/256);
-  b=(b<=10)? 0 : (int) b-(b*fadeValue/256);
-
-  leds[num * 3 + 0] = r;
-  leds[num * 3 + 1] = g;
-  leds[num * 3 + 2] = b;
-}
-
-void effect(struct strand *s, int w, int h) {
+void effect(struct strand *s) {
   char matrix[kStrandCnt][kLEDCnt * 3];
-  int meteorTrailDecay = 64;
-  int meteorRandomDecay = 1;
-  int meteorSize = 10;
 
   for (int i = 0; i < kStrandCnt; ++i)
     for (int j = 0; j < kLEDCnt; ++j) {
-      matrix[i][j *3 + 0] = 0x0;
-      matrix[i][j *3 + 1] = 0x0;
-      matrix[i][j *3 + 2] = 0x0;
+      double h, s, l, r, g, b;
+      h = j * (360.0 / kLEDCnt);
+      s = 100.0;
+      l = 5;
+      hsluv2rgb(h, s, l, &r, &g, &b);
+
+      matrix[i][j *3 + 0] = (int)(r * 255.0);
+      matrix[i][j *3 + 1] = (int)(g * 255.0);
+      matrix[i][j *3 + 2] = (int)(b * 255.0);
     }
 
-  for (int j = 0; j < kLEDCnt + kLEDCnt; ++j) {
-    for (int i = 0; i < kStrandCnt; ++i) {
-      for (int k = 0; k < kLEDCnt; ++k) {
-        if ((!meteorRandomDecay) || ((rand() % 10) > 5)) {
-          fadeToBlack(matrix[i], k, meteorTrailDecay);
-        }
-      }
-
-      for (int k = 0; k < meteorSize; ++k) {
-        if ((j - k < kLEDCnt) && (j - k >= 0)) {
-          matrix[i][(j - k) * 3 + 0] = 0xff;
-          matrix[i][(j - k) * 3 + 1] = 0xff;
-          matrix[i][(j - k) * 3 + 2] = 0xff;
-        }
-      }
-
-      if (send(s[i].sock, matrix[i], kLEDCnt*3, 0) < 0) {
-        fprintf(stderr, "Send failed");
-        return;
-      }
-      usleep(8000);
+  for (int i = 0; i < kStrandCnt; ++i) {
+    if (send(s[i].sock, matrix[i], kLEDCnt*3, 0) < 0) {
+      fprintf(stderr, "Send failed");
+      return;
     }
   }
 }
@@ -91,31 +63,33 @@ int createConnection(struct strand *s) {
 }
 
 int main(int c, char **v) {
-  int w = 0, h = 0;
-  if (c > 1) w = atoi(v[1]);
-  if (c > 2) h = atoi(v[2]);
-  if (w <= 0) w = 80;
-  if (h <= 0) h = 120;
-
   struct strand strands[kStrandCnt];
 
-  strands[ 0].host = 209;
-  strands[ 1].host = 203;
-  strands[ 2].host = 201;
-  strands[ 3].host = 219;
-  strands[ 4].host = 206;
-  strands[ 5].host = 204;
-  strands[ 6].host = 217;
-  strands[ 7].host = 212;
-  strands[ 8].host = 214;
-  strands[ 9].host = 215;
-  strands[10].host = 218;
+  strands[ 0].host = 203;
+  strands[ 1].host = 209;
+  strands[ 2].host = 206;
+  strands[ 3].host = 201;
+  strands[ 4].host = 200;
+  strands[ 5].host = 213;
+  strands[ 6].host = 210;
+  strands[ 7].host = 207;
+  strands[ 8].host = 202;
+  strands[ 9].host = 216;
+  strands[10].host = 220;
   strands[11].host = 205;
+  strands[12].host = 217;
+  strands[13].host = 212;
+  strands[14].host = 218;
+  strands[15].host = 204;
+  strands[16].host = 211;
+  strands[17].host = 214;
+  strands[18].host = 219;
+  strands[19].host = 208;
 
   for (int i = 0; i < kStrandCnt; ++i)
     createConnection(&strands[i]);
 
-  effect(strands, w, h);
+  effect(strands);
 
   for (int i = 0; i < kStrandCnt; ++i)
     close(strands[i].sock);
