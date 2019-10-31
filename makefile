@@ -6,7 +6,7 @@ OBJ=client.o hsluv.o
 	$(CPP) -c -o $@ $^ $(CFLAGS)
 
 lights: $(OBJ)
-	$(CPP) -o $@ $^ $(CFLAGS)
+	$(CPP) -o $@ $^ $(CFLAGS) -lpthread
 
 .PHONY: clean
 

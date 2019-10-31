@@ -1,6 +1,6 @@
 #include <arpa/inet.h>
 #include <math.h>
-#include <signal.h>
+#include <pthread.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -11,33 +11,48 @@
 static const int kStrandCnt = 20;
 static const int kLEDCnt = 120;
 static volatile int keepRunning = 1;
+static volatile double s_ = 100.0;
+static volatile double l_ = 5.0;
 
 struct strand {
   int sock;
   int host;
 };
 
-void intHandler(int dummy) {
-  keepRunning = 0;
+void *inputThread(void *vargp){
+  char buffer[256];
+  while(keepRunning) {
+    scanf("%5s", buffer);
+    if (buffer[0] == 's')
+      s_ = atoi(buffer + 1);
+    else if (buffer[0] == 'l')
+      l_ = atoi(buffer + 1);
+    else if (buffer[0] == 'q')
+      keepRunning = 0;
+  }
+  return NULL;
 }
 
 void effect(struct strand *s) {
   double matrix[kStrandCnt][kLEDCnt * 3];
+  double l = 0;
+  while(keepRunning) {
+    if (l_ != l) {
+      l = l_;
+      for (int i = 0; i < kStrandCnt; ++i) {
+        for (int j = 0; j < kLEDCnt; ++j) {
+          double h, r, g, b;
+          h = j * (360.0 / kLEDCnt);
+          hsluv2rgb(h, s_, l, &r, &g, &b);
 
-  for (int i = 0; i < kStrandCnt; ++i)
-    for (int j = 0; j < kLEDCnt; ++j) {
-      double h, s, l, r, g, b;
-      h = j * (360.0 / kLEDCnt);
-      s = 100.0;
-      l = 5;
-      hsluv2rgb(h, s, l, &r, &g, &b);
-
-      matrix[i][j * 3 + 0] = r;
-      matrix[i][j * 3 + 1] = g;
-      matrix[i][j * 3 + 2] = b;
+          matrix[i][j * 3 + 0] = r;
+          matrix[i][j * 3 + 1] = g;
+          matrix[i][j * 3 + 2] = b;
+        }
+      }
     }
 
-  while(keepRunning) {
+
     for (int i = 0; i < kStrandCnt; ++i) {
       for (int j = 0; j < kLEDCnt; ++j) {
         double h, s, l, r, g, b;
@@ -52,7 +67,7 @@ void effect(struct strand *s) {
         if (h > 360.0)
           h -= 360.0;
 
-        hsluv2rgb(h, s, l, &r, &g, &b);
+        hsluv2rgb(h, s_, l, &r, &g, &b);
 
         matrix[i][j * 3 + 0] = r;
         matrix[i][j * 3 + 1] = g;
@@ -121,7 +136,8 @@ int main(int c, char **v) {
   strands[18].host = 219;
   strands[19].host = 208;
 
-  signal(SIGINT, intHandler);
+  pthread_t thread_id;
+  pthread_create(&thread_id, NULL, inputThread, NULL);
 
   for (int i = 0; i < kStrandCnt; ++i)
     createConnection(&strands[i]);
@@ -130,6 +146,8 @@ int main(int c, char **v) {
 
   for (int i = 0; i < kStrandCnt; ++i)
     close(strands[i].sock);
+
+  pthread_join(thread_id, NULL);
 
   return 0;
 }
