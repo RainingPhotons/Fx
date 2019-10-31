@@ -1,5 +1,6 @@
 #include <arpa/inet.h>
 #include <math.h>
+#include <signal.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -9,11 +10,16 @@
 
 static const int kStrandCnt = 20;
 static const int kLEDCnt = 120;
+static volatile int keepRunning = 1;
 
 struct strand {
   int sock;
   int host;
 };
+
+void intHandler(int dummy) {
+  keepRunning = 0;
+}
 
 void effect(struct strand *s) {
   double matrix[kStrandCnt][kLEDCnt * 3];
@@ -31,7 +37,7 @@ void effect(struct strand *s) {
       matrix[i][j * 3 + 2] = b;
     }
 
-  for (int h = 0; h < 360; ++h) {
+  while(keepRunning) {
     for (int i = 0; i < kStrandCnt; ++i) {
       for (int j = 0; j < kLEDCnt; ++j) {
         double h, s, l, r, g, b;
@@ -114,6 +120,8 @@ int main(int c, char **v) {
   strands[17].host = 214;
   strands[18].host = 219;
   strands[19].host = 208;
+
+  signal(SIGINT, intHandler);
 
   for (int i = 0; i < kStrandCnt; ++i)
     createConnection(&strands[i]);
