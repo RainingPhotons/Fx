@@ -10,6 +10,7 @@
 
 static const int kStrandCnt = 20;
 static const int kLEDCnt = 120;
+static const int kMaxLine = 8;
 static volatile int keepRunning = 1;
 static volatile double s_ = 100.0;
 static volatile double l_ = 5.0;
@@ -19,7 +20,7 @@ struct strand {
   int host;
 };
 
-void *inputThread(void *vargp){
+void *input_thread(void *vargp){
   char buffer[256];
   while(keepRunning) {
     scanf("%5s", buffer);
@@ -30,6 +31,25 @@ void *inputThread(void *vargp){
     else if (buffer[0] == 'q')
       keepRunning = 0;
   }
+  return NULL;
+}
+
+void *read_strands_thread (void *vargp){
+  int sock = *((int *)vargp);
+  char buffer[kMaxLine];
+  int16_t *buffer_ptr = (int16_t *)buffer;
+
+  while(keepRunning) {
+    if (0 > read(sock, buffer, kMaxLine)) {
+      keepRunning = 0;
+      fprintf(stderr, "error\n");
+    }
+    if (0) {
+      printf("%d: %d, %d, %d\n",
+        buffer_ptr[0], buffer_ptr[1], buffer_ptr[2], buffer_ptr[3]);
+    }
+  }
+
   return NULL;
 }
 
@@ -84,36 +104,52 @@ void effect(struct strand *s) {
         return;
       }
 
-      usleep(800);
+      usleep(1000);
     }
   }
 }
 
-int createConnection(struct strand *s) {
+int create_connection(in_addr_t addr, int* sock, int port, int read) {
   struct sockaddr_in server;
 
-  s->sock = socket(AF_INET, SOCK_DGRAM, 0);
-  if (s->sock == -1) {
+  *sock = socket(AF_INET, SOCK_DGRAM, 0);
+  if (*sock == -1) {
     fprintf(stderr, "Could not create socket");
     return 0;
   }
 
-  char addr[32];
-  sprintf(addr, "192.168.1.%d", s->host);
-  server.sin_addr.s_addr = inet_addr(addr);
+  server.sin_addr.s_addr = addr;
   server.sin_family = AF_INET;
-  server.sin_port = htons(5000);
+  server.sin_port = htons(port);
 
-  if (connect(s->sock, (struct sockaddr*)&server, sizeof(server)) < 0) {
-    perror("connect failed. Error");
-    return 0;
+  if (read) {
+    if (bind(*sock, (struct sockaddr*)&server, sizeof(server)) < 0) {
+        perror("connect to server failed");
+        return 0;
+    }
+  } else {
+    if (connect(*sock, (struct sockaddr*)&server, sizeof(server)) < 0) {
+      perror("connect failed. Error");
+      return 0;
+    }
   }
 
   return 1;
 }
 
+int create_connection_write(int host, int* sock, int port) {
+  char addr[32];
+  sprintf(addr, "192.168.1.%d", host);
+
+  return create_connection(inet_addr(addr), sock, port, 0);
+}
+
+int create_connection_read(in_addr_t addr, int* sock, int port) {
+  return create_connection(addr, sock, port, 1);
+}
 int main(int c, char **v) {
   struct strand strands[kStrandCnt];
+  int read_sock = -1;
 
   strands[ 0].host = 203;
   strands[ 1].host = 209;
@@ -136,18 +172,25 @@ int main(int c, char **v) {
   strands[18].host = 219;
   strands[19].host = 208;
 
-  pthread_t thread_id;
-  pthread_create(&thread_id, NULL, inputThread, NULL);
+  pthread_t thread_input_id;
+  pthread_create(&thread_input_id, NULL, input_thread, NULL);
+
+  create_connection_read(INADDR_ANY, &read_sock, 5002);
+  pthread_t thread_read_id;
+  pthread_create(&thread_read_id, NULL, read_strands_thread, (void *)&read_sock);
 
   for (int i = 0; i < kStrandCnt; ++i)
-    createConnection(&strands[i]);
+    create_connection_write(strands[i].host, &strands[i].sock, 5000);
 
   effect(strands);
 
   for (int i = 0; i < kStrandCnt; ++i)
     close(strands[i].sock);
 
-  pthread_join(thread_id, NULL);
+  pthread_join(thread_input_id, NULL);
+  pthread_join(thread_read_id, NULL);
+
+  close(read_sock);
 
   return 0;
 }
