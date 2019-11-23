@@ -1,3 +1,4 @@
+#include <algorithm>
 #include <arpa/inet.h>
 #include <math.h>
 #include <pthread.h>
@@ -11,14 +12,30 @@
 static const int kStrandCnt = 20;
 static const int kLEDCnt = 120;
 static const int kMaxLine = 8;
+static const int kGravity = 77;
+static const int kWindowSize = 8;
 static volatile int keepRunning = 1;
 static volatile double s_ = 100.0;
 static volatile double l_ = 5.0;
+static volatile int moving_window[kWindowSize];
+static volatile int moving_window_sum;
+static volatile int mw_idx;
 
 struct strand {
   int sock;
   int host;
 };
+
+int moving_window_average(int new_value) {
+  moving_window_sum += new_value;
+  moving_window_sum -= moving_window[mw_idx];
+  moving_window[mw_idx] = new_value;
+  mw_idx++;
+  if (mw_idx == kWindowSize)
+    mw_idx = 0;
+
+  return moving_window_sum / kWindowSize;
+}
 
 void *input_thread(void *vargp){
   char buffer[256];
@@ -44,9 +61,16 @@ void *read_strands_thread (void *vargp){
       keepRunning = 0;
       fprintf(stderr, "error\n");
     }
-    if (0) {
-      printf("%d: %d, %d, %d\n",
-        buffer_ptr[0], buffer_ptr[1], buffer_ptr[2], buffer_ptr[3]);
+    const int board = buffer_ptr[0];
+    if (board == 203) {
+      const int x = buffer_ptr[1];
+      const int y = buffer_ptr[2];
+      const int z = buffer_ptr[3];
+      const double magnitude = sqrt(x*x + y*y + z*z);
+      const int value = abs((magnitude / 100.0) - kGravity);
+      const int moving_average = moving_window_average(value);
+      l_ = std::min(100, std::max(1, moving_average));
+      printf("%3d: %5d : %5d\n", buffer_ptr[0], value, moving_average);
     }
   }
 
@@ -62,7 +86,7 @@ void effect(struct strand *s) {
       for (int i = 0; i < kStrandCnt; ++i) {
         for (int j = 0; j < kLEDCnt; ++j) {
           double h, r, g, b;
-          h = j * (360.0 / kLEDCnt);
+          h = (j + (i * 10)) * (360.0 / (kLEDCnt + (kStrandCnt * 10)));
           hsluv2rgb(h, s_, l, &r, &g, &b);
 
           matrix[i][j * 3 + 0] = r;
@@ -171,6 +195,11 @@ int main(int c, char **v) {
   strands[17].host = 214;
   strands[18].host = 219;
   strands[19].host = 208;
+
+  for (int i = 0; i < kWindowSize; ++i)
+    moving_window[i] = 0;
+  moving_window_sum = 0;
+  mw_idx = 0;
 
   pthread_t thread_input_id;
   pthread_create(&thread_input_id, NULL, input_thread, NULL);
