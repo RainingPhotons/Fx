@@ -2,7 +2,7 @@ CPP=g++
 CFLAGS=-Wall -g
 OBJ=client.o hsluv.o
 
-%.o: %.c
+%.o: %.cc
 	$(CPP) -c -o $@ $^ $(CFLAGS)
 
 lights: $(OBJ)
