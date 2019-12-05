@@ -1,5 +1,5 @@
 CPP=g++
-CFLAGS=-Wall -g
+CFLAGS=-Wall -g -std=c++11
 OBJ=client.o hsluv.o
 
 %.o: %.cc
