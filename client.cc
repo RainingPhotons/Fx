@@ -1,4 +1,6 @@
 #include <algorithm>
+#include <map>
+
 #include <arpa/inet.h>
 #include <math.h>
 #include <pthread.h>
@@ -12,41 +14,44 @@
 static const int kStrandCnt = 20;
 static const int kLEDCnt = 120;
 static const int kMaxLine = 8;
-static const int kGravity = 77;
+static const int kGravity = 800;
 static const int kWindowSize = 8;
 static volatile int keepRunning = 1;
 static volatile double s_ = 100.0;
-static volatile double l_ = 5.0;
-static volatile int moving_window[kWindowSize];
-static volatile int moving_window_sum;
-static volatile int mw_idx;
+static volatile double l_[kStrandCnt];
+static volatile int moving_window[kStrandCnt][kWindowSize];
+static volatile int moving_window_sum[kStrandCnt];
+static volatile int mw_idx[kStrandCnt];
+static std::map<int, int> strand_map;
 
 struct strand {
   int sock;
   int host;
 };
 
-int moving_window_average(int new_value) {
-  moving_window_sum += new_value;
-  moving_window_sum -= moving_window[mw_idx];
-  moving_window[mw_idx] = new_value;
-  mw_idx++;
-  if (mw_idx == kWindowSize)
-    mw_idx = 0;
+int moving_window_average(int new_value, int idx) {
+  moving_window_sum[idx] += new_value;
+  moving_window_sum[idx] -= moving_window[idx][mw_idx[idx]];
+  moving_window[idx][mw_idx[idx]] = new_value;
+  mw_idx[idx]++;
+  if (mw_idx[idx] == kWindowSize)
+    mw_idx[idx] = 0;
 
-  return moving_window_sum / kWindowSize;
+  return moving_window_sum[idx] / kWindowSize;
 }
 
 void *input_thread(void *vargp){
   char buffer[256];
   while(keepRunning) {
     scanf("%5s", buffer);
-    if (buffer[0] == 's')
+    if (buffer[0] == 's') {
       s_ = atoi(buffer + 1);
-    else if (buffer[0] == 'l')
-      l_ = atoi(buffer + 1);
-    else if (buffer[0] == 'q')
+    } else if (buffer[0] == 'l') {
+      for (int i = 0; i < kStrandCnt; ++i)
+        l_[i] = atoi(buffer + 1);
+    } else if (buffer[0] == 'q') {
       keepRunning = 0;
+    }
   }
   return NULL;
 }
@@ -61,17 +66,14 @@ void *read_strands_thread (void *vargp){
       keepRunning = 0;
       fprintf(stderr, "error\n");
     }
-    const int board = buffer_ptr[0];
-    if (board == 203) {
-      const int x = buffer_ptr[1];
-      const int y = buffer_ptr[2];
-      const int z = buffer_ptr[3];
-      const double magnitude = sqrt(x*x + y*y + z*z);
-      const int value = abs((magnitude / 100.0) - kGravity);
-      const int moving_average = moving_window_average(value);
-      l_ = std::min(100, std::max(1, moving_average));
-      printf("%3d: %5d : %5d\n", buffer_ptr[0], value, moving_average);
-    }
+    const int board_idx = strand_map[buffer_ptr[0]];
+    const int x = buffer_ptr[1];
+    const int y = buffer_ptr[2];
+    const int z = buffer_ptr[3];
+    const double magnitude = sqrt(x*x + y*y + z*z);
+    const int value = (magnitude / 10.0) - kGravity;
+    const int moving_average = moving_window_average(value, board_idx);
+    l_[board_idx] = std::min(80, std::max(1, moving_average));
   }
 
   return NULL;
@@ -79,24 +81,23 @@ void *read_strands_thread (void *vargp){
 
 void effect(struct strand *s) {
   double matrix[kStrandCnt][kLEDCnt * 3];
-  double l = 0;
-  while(keepRunning) {
-    if (l_ != l) {
-      l = l_;
-      for (int i = 0; i < kStrandCnt; ++i) {
-        for (int j = 0; j < kLEDCnt; ++j) {
-          double h, r, g, b;
-          h = (j + (i * 10)) * (360.0 / (kLEDCnt + (kStrandCnt * 10)));
-          hsluv2rgb(h, s_, l, &r, &g, &b);
+  double ll[kStrandCnt] = { 0 };
+  for (int i = 0; i < kStrandCnt; ++i) {
+    if (l_[i] != ll[i]) {
+      ll[i] = l_[i];
+      for (int j = 0; j < kLEDCnt; ++j) {
+        double h, r, g, b;
+        h = (j + (i * 10)) * (360.0 / (kLEDCnt + (kStrandCnt * 10)));
+        hsluv2rgb(h, s_, ll[i], &r, &g, &b);
 
-          matrix[i][j * 3 + 0] = r;
-          matrix[i][j * 3 + 1] = g;
-          matrix[i][j * 3 + 2] = b;
-        }
+        matrix[i][j * 3 + 0] = r;
+        matrix[i][j * 3 + 1] = g;
+        matrix[i][j * 3 + 2] = b;
       }
     }
+  }
 
-
+  while(keepRunning) {
     for (int i = 0; i < kStrandCnt; ++i) {
       for (int j = 0; j < kLEDCnt; ++j) {
         double h, s, l, r, g, b;
@@ -111,6 +112,7 @@ void effect(struct strand *s) {
         if (h > 360.0)
           h -= 360.0;
 
+        l = l_[i];
         hsluv2rgb(h, s_, l, &r, &g, &b);
 
         matrix[i][j * 3 + 0] = r;
@@ -130,6 +132,7 @@ void effect(struct strand *s) {
 
       usleep(1000);
     }
+    usleep((20 - kStrandCnt) * 1000);
   }
 }
 
@@ -196,10 +199,18 @@ int main(int c, char **v) {
   strands[18].host = 219;
   strands[19].host = 208;
 
-  for (int i = 0; i < kWindowSize; ++i)
-    moving_window[i] = 0;
-  moving_window_sum = 0;
-  mw_idx = 0;
+  for (int i = 0; i < kStrandCnt; ++i)
+    l_[i] = 5.0;
+
+  for (int i = 0; i < kStrandCnt; ++i)
+    strand_map.insert(std::make_pair(strands[i].host, i));
+
+  for (int i = 0; i < kStrandCnt; ++i) {
+    for (int j = 0; j < kWindowSize; ++j)
+      moving_window[i][j] = 0;
+    moving_window_sum[i] = 0;
+    mw_idx[i] = 0;
+  }
 
   pthread_t thread_input_id;
   pthread_create(&thread_input_id, NULL, input_thread, NULL);
