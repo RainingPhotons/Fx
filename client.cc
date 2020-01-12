@@ -84,14 +84,6 @@ void *read_strands_thread (void *vargp){
 
 void display(struct strand *s, char matrix[kStrandCnt][kLEDCnt * 3]) {
   for (int i = 0; i < kStrandCnt; ++i) {
-    // flash dots
-    if ((flash_ - 1)== i) {
-      const int line_num = 10;
-      matrix[i][(line_num * 3) + 0] = 128;
-      matrix[i][(line_num * 3) + 1] = 128;
-      matrix[i][(line_num * 3) + 2] = 128;
-    }
-
     if (send(s[i].sock, matrix[i], kLEDCnt*3, 0) < 0) {
       fprintf(stderr, "Send failed");
       return;
@@ -99,18 +91,56 @@ void display(struct strand *s, char matrix[kStrandCnt][kLEDCnt * 3]) {
 
     usleep(1000);
   }
+}
+
+void flash(char matrix[kStrandCnt][kLEDCnt * 3]) {
+  for (int i = 0; i < kStrandCnt; ++i) {
+    // flash dots
+    if ((flash_ - 1 )== i) {
+      const int line_num = 10;
+      matrix[i][(line_num * 3) + 0] = 128;
+      matrix[i][(line_num * 3) + 1] = 128;
+      matrix[i][(line_num * 3) + 2] = 128;
+    }
+  }
 
   if (flash_ > 0)
     flash_--;
-
-  // if using less than 20 strands this will
-  // keep about the same refresh rate as 20 strands
-  usleep((20 - kStrandCnt) * 1000);
 }
 
-void effect(struct strand *s) {
-  double matrix[kStrandCnt][kLEDCnt * 3];
-  char output_matrix[kStrandCnt][kLEDCnt * 3];
+void effect(double matrix[kStrandCnt][kLEDCnt * 3],
+            char output_matrix[kStrandCnt][kLEDCnt * 3]) {
+  for (int i = 0; i < kStrandCnt; ++i) {
+    for (int j = 0; j < kLEDCnt; ++j) {
+      double h, s, l, r, g, b;
+
+      r = matrix[i][j * 3 + 0];
+      g = matrix[i][j * 3 + 1];
+      b = matrix[i][j * 3 + 2];
+      rgb2hsluv(r, g, b, &h, &s, &l);
+
+      h += 360.0 / kLEDCnt;
+
+      if (h > 360.0)
+        h -= 360.0;
+
+      l = l_[i];
+      hsluv2rgb(h, s_, l, &r, &g, &b);
+
+      matrix[i][j * 3 + 0] = r;
+      matrix[i][j * 3 + 1] = g;
+      matrix[i][j * 3 + 2] = b;
+
+      // the colors are computed in floating point [0.0 .. 1.0]
+      // they need to be converted over to [0 .. 255]
+      output_matrix[i][j * 3 + 0] = r * 255.0;
+      output_matrix[i][j * 3 + 1] = g * 255.0;
+      output_matrix[i][j * 3 + 2] = b * 255.0;
+    }
+  }
+}
+
+void setup(double matrix[kStrandCnt][kLEDCnt * 3]) {
   double ll[kStrandCnt] = { 0 };
   for (int i = 0; i < kStrandCnt; ++i) {
     if (l_[i] != ll[i]) {
@@ -126,38 +156,22 @@ void effect(struct strand *s) {
       }
     }
   }
+}
+
+void loop(struct strand *s) {
+  double matrix[kStrandCnt][kLEDCnt * 3];
+  char output_matrix[kStrandCnt][kLEDCnt * 3];
+
+  setup(matrix);
 
   while(keepRunning) {
-    for (int i = 0; i < kStrandCnt; ++i) {
-      for (int j = 0; j < kLEDCnt; ++j) {
-        double h, s, l, r, g, b;
-
-        r = matrix[i][j * 3 + 0];
-        g = matrix[i][j * 3 + 1];
-        b = matrix[i][j * 3 + 2];
-        rgb2hsluv(r, g, b, &h, &s, &l);
-
-        h += 360.0 / kLEDCnt;
-
-        if (h > 360.0)
-          h -= 360.0;
-
-        l = l_[i];
-        hsluv2rgb(h, s_, l, &r, &g, &b);
-
-        matrix[i][j * 3 + 0] = r;
-        matrix[i][j * 3 + 1] = g;
-        matrix[i][j * 3 + 2] = b;
-
-        // the colors are computed in floating point [0.0 .. 1.0]
-        // they need to be converted over to [0 .. 255]
-        output_matrix[i][j * 3 + 0] = r * 255.0;
-        output_matrix[i][j * 3 + 1] = g * 255.0;
-        output_matrix[i][j * 3 + 2] = b * 255.0;
-      }
-    }
-
+    effect(matrix, output_matrix);
+    flash(output_matrix);
     display(s, output_matrix);
+
+    // if using less than 20 strands this will
+    // keep about the same refresh rate as 20 strands
+    usleep((20 - kStrandCnt) * 1000);
   }
 }
 
@@ -247,7 +261,7 @@ int main(int c, char **v) {
   for (int i = 0; i < kStrandCnt; ++i)
     create_connection_write(strands[i].host, &strands[i].sock, 5000);
 
-  effect(strands);
+  loop(strands);
 
   for (int i = 0; i < kStrandCnt; ++i)
     close(strands[i].sock);
