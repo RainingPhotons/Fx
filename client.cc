@@ -88,8 +88,6 @@ void display(struct strand *s, char matrix[kStrandCnt][kLEDCnt * 3]) {
       fprintf(stderr, "Send failed");
       return;
     }
-
-    usleep(1000);
   }
 }
 
@@ -184,6 +182,8 @@ void loop(struct strand *s) {
     flash(output_matrix);
     snake(output_matrix);
     display(s, output_matrix);
+
+    usleep(1000 * kStrandCnt);
 
     // if using less than 20 strands this will
     // keep about the same refresh rate as 20 strands
