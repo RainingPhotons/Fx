@@ -82,6 +82,39 @@ void *read_strands_thread (void *vargp){
   return NULL;
 }
 
+void display(struct strand *s, double matrix[kStrandCnt][kLEDCnt * 3]) {
+  for (int i = 0; i < kStrandCnt; ++i) {
+    // the colors are computed in floating point [0.0 .. 1.0]
+    // they need to be converted over to [0 .. 255]
+    char output_matrix[kLEDCnt * 3];
+    for (int j = 0; j < kLEDCnt * 3; ++j) {
+      output_matrix[j] = matrix[i][j] * 255.0;
+    }
+
+    // flash dots
+    if ((flash_ - 1)== i) {
+      const int line_num = 10;
+      output_matrix[(line_num * 3) + 0] = 128;
+      output_matrix[(line_num * 3) + 1] = 128;
+      output_matrix[(line_num * 3) + 2] = 128;
+    }
+
+    if (send(s[i].sock, output_matrix, kLEDCnt*3, 0) < 0) {
+      fprintf(stderr, "Send failed");
+      return;
+    }
+
+    usleep(1000);
+  }
+
+  if (flash_ > 0)
+    flash_--;
+
+  // if using less than 20 strands this will
+  // keep about the same refresh rate as 20 strands
+  usleep((20 - kStrandCnt) * 1000);
+}
+
 void effect(struct strand *s) {
   double matrix[kStrandCnt][kLEDCnt * 3];
   double ll[kStrandCnt] = { 0 };
@@ -124,37 +157,7 @@ void effect(struct strand *s) {
       }
     }
 
-    // write out the strands
-    // the colors are computed in floating point [0.0 .. 1.0]
-    // they need to be converted over to [0 .. 255]
-    for (int i = 0; i < kStrandCnt; ++i) {
-      char output_matrix[kLEDCnt * 3];
-      for (int j = 0; j < kLEDCnt * 3; ++j) {
-        output_matrix[j] = matrix[i][j] * 255.0;
-      }
-
-      // flash dots
-      if ((flash_ - 1)== i) {
-        const int line_num = 10;
-        output_matrix[(line_num * 3) + 0] = 128;
-        output_matrix[(line_num * 3) + 1] = 128;
-        output_matrix[(line_num * 3) + 2] = 128;
-      }
-
-      if (send(s[i].sock, output_matrix, kLEDCnt*3, 0) < 0) {
-        fprintf(stderr, "Send failed");
-        return;
-      }
-
-      usleep(1000);
-    }
-
-    if (flash_ > 0)
-      flash_--;
-
-    // if using less than 20 strands this will
-    // keep about the same refresh rate as 20 strands
-    usleep((20 - kStrandCnt) * 1000);
+    display(s, matrix);
   }
 }
 
