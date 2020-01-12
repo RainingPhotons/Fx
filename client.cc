@@ -82,24 +82,17 @@ void *read_strands_thread (void *vargp){
   return NULL;
 }
 
-void display(struct strand *s, double matrix[kStrandCnt][kLEDCnt * 3]) {
+void display(struct strand *s, char matrix[kStrandCnt][kLEDCnt * 3]) {
   for (int i = 0; i < kStrandCnt; ++i) {
-    // the colors are computed in floating point [0.0 .. 1.0]
-    // they need to be converted over to [0 .. 255]
-    char output_matrix[kLEDCnt * 3];
-    for (int j = 0; j < kLEDCnt * 3; ++j) {
-      output_matrix[j] = matrix[i][j] * 255.0;
-    }
-
     // flash dots
     if ((flash_ - 1)== i) {
       const int line_num = 10;
-      output_matrix[(line_num * 3) + 0] = 128;
-      output_matrix[(line_num * 3) + 1] = 128;
-      output_matrix[(line_num * 3) + 2] = 128;
+      matrix[i][(line_num * 3) + 0] = 128;
+      matrix[i][(line_num * 3) + 1] = 128;
+      matrix[i][(line_num * 3) + 2] = 128;
     }
 
-    if (send(s[i].sock, output_matrix, kLEDCnt*3, 0) < 0) {
+    if (send(s[i].sock, matrix[i], kLEDCnt*3, 0) < 0) {
       fprintf(stderr, "Send failed");
       return;
     }
@@ -117,6 +110,7 @@ void display(struct strand *s, double matrix[kStrandCnt][kLEDCnt * 3]) {
 
 void effect(struct strand *s) {
   double matrix[kStrandCnt][kLEDCnt * 3];
+  char output_matrix[kStrandCnt][kLEDCnt * 3];
   double ll[kStrandCnt] = { 0 };
   for (int i = 0; i < kStrandCnt; ++i) {
     if (l_[i] != ll[i]) {
@@ -154,10 +148,16 @@ void effect(struct strand *s) {
         matrix[i][j * 3 + 0] = r;
         matrix[i][j * 3 + 1] = g;
         matrix[i][j * 3 + 2] = b;
+
+        // the colors are computed in floating point [0.0 .. 1.0]
+        // they need to be converted over to [0 .. 255]
+        output_matrix[i][j * 3 + 0] = r * 255.0;
+        output_matrix[i][j * 3 + 1] = g * 255.0;
+        output_matrix[i][j * 3 + 2] = b * 255.0;
       }
     }
 
-    display(s, matrix);
+    display(s, output_matrix);
   }
 }
 
