@@ -12,6 +12,10 @@ void print_array(int* array, int size){
   printf("\n");
 }
 
+void propagate(int* array, int strand) {
+
+}
+
 int main(int argc, char const *argv[]){
   for (int i = 0; i < kStrandCnt; ++i) {
     propagation_[0][i] = 0;
