@@ -1,9 +1,9 @@
 #include <algorithm>
 #include <map>
+#include <thread>
 
 #include <arpa/inet.h>
 #include <math.h>
-#include <pthread.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -41,7 +41,7 @@ int moving_window_average(int new_value, int idx) {
   return moving_window_sum[idx] / kWindowSize;
 }
 
-void *input_thread(void *vargp){
+void input_thread(){
   char buffer[256];
   while(keepRunning) {
     scanf("%5s", buffer);
@@ -56,11 +56,9 @@ void *input_thread(void *vargp){
       flash_ = kStrandCnt + 1;
     }
   }
-  return NULL;
 }
 
-void *read_strands_thread (void *vargp){
-  int sock = *((int *)vargp);
+void read_strands_thread(int sock){
   char buffer[kMaxLine];
   int16_t *buffer_ptr = (int16_t *)buffer;
 
@@ -78,8 +76,6 @@ void *read_strands_thread (void *vargp){
     const int moving_average = moving_window_average(value, board_idx);
     l_[board_idx] = std::min(80, std::max(1, moving_average));
   }
-
-  return NULL;
 }
 
 void display(struct strand *s, char matrix[kStrandCnt][kLEDCnt * 3]) {
@@ -267,12 +263,10 @@ int main(int c, char **v) {
     mw_idx[i] = 0;
   }
 
-  pthread_t thread_input_id;
-  pthread_create(&thread_input_id, NULL, input_thread, NULL);
+  std::thread thread_input_id(input_thread);
 
   create_connection_read(INADDR_ANY, &read_sock, 5002);
-  pthread_t thread_read_id;
-  pthread_create(&thread_read_id, NULL, read_strands_thread, (void *)&read_sock);
+  std::thread thread_read_id(read_strands_thread, read_sock);
 
   for (int i = 0; i < kStrandCnt; ++i)
     create_connection_write(strands[i].host, &strands[i].sock, 5000);
@@ -282,8 +276,8 @@ int main(int c, char **v) {
   for (int i = 0; i < kStrandCnt; ++i)
     close(strands[i].sock);
 
-  pthread_join(thread_input_id, NULL);
-  pthread_join(thread_read_id, NULL);
+  thread_input_id.join();
+  thread_read_id.join();
 
   close(read_sock);
 
