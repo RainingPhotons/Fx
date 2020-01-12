@@ -96,7 +96,7 @@ void display(struct strand *s, char matrix[kStrandCnt][kLEDCnt * 3]) {
 void flash(char matrix[kStrandCnt][kLEDCnt * 3]) {
   for (int i = 0; i < kStrandCnt; ++i) {
     // flash dots
-    if ((flash_ - 1 )== i) {
+    if ((flash_ - 1) == i) {
       const int line_num = 10;
       matrix[i][(line_num * 3) + 0] = 128;
       matrix[i][(line_num * 3) + 1] = 128;
@@ -106,6 +106,22 @@ void flash(char matrix[kStrandCnt][kLEDCnt * 3]) {
 
   if (flash_ > 0)
     flash_--;
+}
+
+void snake(char matrix[kStrandCnt][kLEDCnt * 3]) {
+  static int pos = 0;
+  static const int kMaxPos = kStrandCnt * kLEDCnt;
+
+  const int line_num = pos / kStrandCnt;
+  const int line_pos = pos % kStrandCnt;
+  const int line_pos_dir = (line_num % 2) ? (kStrandCnt - line_pos) : line_pos;
+
+  matrix[line_pos_dir][(line_num * 3) + 0] = 128;
+  matrix[line_pos_dir][(line_num * 3) + 1] = 128;
+  matrix[line_pos_dir][(line_num * 3) + 2] = 128;
+
+  if (pos++ > kMaxPos)
+    pos = 0;
 }
 
 void effect(double matrix[kStrandCnt][kLEDCnt * 3],
@@ -167,6 +183,7 @@ void loop(struct strand *s) {
   while(keepRunning) {
     effect(matrix, output_matrix);
     flash(output_matrix);
+    snake(output_matrix);
     display(s, output_matrix);
 
     // if using less than 20 strands this will
