@@ -94,14 +94,13 @@ void display(struct strand *s, char matrix[kStrandCnt][kLEDCnt * 3]) {
 }
 
 void flash(char matrix[kStrandCnt][kLEDCnt * 3]) {
-  for (int i = 0; i < kStrandCnt; ++i) {
-    // flash dots
-    if ((flash_ - 1) == i) {
-      const int line_num = 10;
-      matrix[i][(line_num * 3) + 0] = 128;
-      matrix[i][(line_num * 3) + 1] = 128;
-      matrix[i][(line_num * 3) + 2] = 128;
-    }
+  const int kLineNumber = 10;
+  const int strand = flash_ - 1;
+
+  if (strand) {
+    matrix[strand][(kLineNumber * 3) + 0] = 128;
+    matrix[strand][(kLineNumber * 3) + 1] = 128;
+    matrix[strand][(kLineNumber * 3) + 2] = 128;
   }
 
   if (flash_ > 0)
