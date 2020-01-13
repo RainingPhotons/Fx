@@ -27,6 +27,8 @@ static volatile int flash_ = 0;
 static volatile bool do_snake = false;
 static std::map<int, int> strand_map;
 
+static volatile int comet_matrix[kStrandCnt];
+
 struct strand {
   int sock;
   int host;
@@ -58,6 +60,8 @@ void input_thread(){
       flash_ = kStrandCnt + 1;
     } else if (buffer[0] == 'n') {
       do_snake = !do_snake;
+    } else if (buffer[0] == 'c') {
+      comet_matrix[0] = 128;
     }
   }
 }
@@ -123,6 +127,28 @@ void snake(char matrix[kStrandCnt][kLEDCnt * 3]) {
   }
 }
 
+void display_comet(char matrix[kStrandCnt][kLEDCnt * 3]) {
+  const int kLineNumber = 10;
+  const int kCometTail = 10;
+  int highest_strand = -1;
+
+  for (int i = 0; i < kStrandCnt; ++i) {
+    if (comet_matrix[i] != 0) {
+      matrix[i][(kLineNumber * 3) + 0] = comet_matrix[i];
+      matrix[i][(kLineNumber * 3) + 1] = comet_matrix[i];
+      matrix[i][(kLineNumber * 3) + 2] = comet_matrix[i];
+      highest_strand = i;
+      comet_matrix[i] = comet_matrix[i] - kCometTail;
+      if (comet_matrix[i] < 0)
+        comet_matrix[i] = 0;
+    }
+  }
+
+  if (highest_strand != -1 && highest_strand != kStrandCnt) {
+    comet_matrix[highest_strand + 1] = 128;
+  }
+}
+
 void effect(double matrix[kStrandCnt][kLEDCnt * 3],
             char output_matrix[kStrandCnt][kLEDCnt * 3]) {
   for (int i = 0; i < kStrandCnt; ++i) {
@@ -170,6 +196,8 @@ void setup(double matrix[kStrandCnt][kLEDCnt * 3]) {
         matrix[i][j * 3 + 2] = b;
       }
     }
+
+    comet_matrix[i] = 0;
   }
 }
 
@@ -186,6 +214,7 @@ void loop(struct strand *s) {
     effect(matrix, output_matrix);
     flash(output_matrix);
     snake(output_matrix);
+    display_comet(output_matrix);
     display(s, output_matrix);
 
     // delay until time to iterate again
