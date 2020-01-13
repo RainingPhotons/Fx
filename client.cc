@@ -1,4 +1,5 @@
 #include <algorithm>
+#include <chrono>
 #include <map>
 #include <thread>
 
@@ -173,17 +174,18 @@ void loop(struct strand *s) {
 
   setup(matrix);
 
+  std::chrono::system_clock::time_point time_point =
+    std::chrono::system_clock::now();
+
   while(keepRunning) {
     effect(matrix, output_matrix);
     flash(output_matrix);
     snake(output_matrix);
     display(s, output_matrix);
 
-    usleep(1000 * kStrandCnt);
-
-    // if using less than 20 strands this will
-    // keep about the same refresh rate as 20 strands
-    usleep((20 - kStrandCnt) * 1000);
+    // delay until time to iterate again
+    time_point += std::chrono::milliseconds(25);
+    std::this_thread::sleep_until(time_point);
   }
 }
 
