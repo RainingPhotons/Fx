@@ -24,6 +24,7 @@ static volatile int moving_window[kStrandCnt][kWindowSize];
 static volatile int moving_window_sum[kStrandCnt];
 static volatile int mw_idx[kStrandCnt];
 static volatile int flash_ = 0;
+static volatile bool do_snake = false;
 static std::map<int, int> strand_map;
 
 struct strand {
@@ -55,6 +56,8 @@ void input_thread(){
       keepRunning = 0;
     } else if (buffer[0] == 'f') {
       flash_ = kStrandCnt + 1;
+    } else if (buffer[0] == 'n') {
+      do_snake = !do_snake;
     }
   }
 }
@@ -106,16 +109,18 @@ void snake(char matrix[kStrandCnt][kLEDCnt * 3]) {
   static int pos = 0;
   static const int kMaxPos = kStrandCnt * kLEDCnt;
 
-  const int line_num = pos / kStrandCnt;
-  const int line_pos = pos % kStrandCnt;
-  const int line_pos_dir = (line_num % 2) ? (kStrandCnt - line_pos) : line_pos;
+  if (do_snake) {
+    const int line_num = pos / kStrandCnt;
+    const int line_pos = pos % kStrandCnt;
+    const int line_pos_dir = (line_num % 2) ? (kStrandCnt - line_pos) : line_pos;
 
-  matrix[line_pos_dir][(line_num * 3) + 0] = 128;
-  matrix[line_pos_dir][(line_num * 3) + 1] = 128;
-  matrix[line_pos_dir][(line_num * 3) + 2] = 128;
+    matrix[line_pos_dir][(line_num * 3) + 0] = 128;
+    matrix[line_pos_dir][(line_num * 3) + 1] = 128;
+    matrix[line_pos_dir][(line_num * 3) + 2] = 128;
 
-  if (pos++ > kMaxPos)
-    pos = 0;
+    if (pos++ > kMaxPos)
+      pos = 0;
+  }
 }
 
 void effect(double matrix[kStrandCnt][kLEDCnt * 3],
