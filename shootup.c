@@ -6,7 +6,7 @@
 #include <string.h>
 #include <unistd.h>
 
-static const int kStrandCnt = 1;
+static const int kStrandCnt = 2;
 static const int kLEDCnt = 120;
 static const int newkStrandCnt = 1;
 
@@ -29,6 +29,7 @@ void fadeToBlack(char *leds, int num, char fadeValue) {
   leds[num * 3 + 0] = r;
   leds[num * 3 + 1] = g;
   leds[num * 3 + 2] = b;
+  //fprintf(stderr, "f,%d\n", (num * 3 + 2));
 }
 
 void effect(struct strand *s, int w, int h) {
@@ -37,18 +38,20 @@ void effect(struct strand *s, int w, int h) {
   int meteorRandomDecay = 1;
   int meteorSize = 10;
 
-  for (int i = 0; i < kStrandCnt; ++i)
+  for (int i = 0; i < kStrandCnt; ++i) {
     //for (int j = kLEDCnt; j <= 0; --j) {
     for (int j = 0; j < kLEDCnt; ++j) {
-      matrix[i][j *3 + 0] = 0xFF;
+      matrix[i][j *3 + 0] = 0x0;
       matrix[i][j *3 + 1] = 0x0;
       matrix[i][j *3 + 2] = 0x0;
     }
+  }
 
-  for (int j = kLEDCnt + kLEDCnt; j > 0; --j) {
+
+  for (int j = kLEDCnt + kLEDCnt; j > 0; --j) { 
   //for (int j = 0; j < kLEDCnt + kLEDCnt; ++j) {
     for (int i = 0; i < kStrandCnt; ++i) {
-      for (int k = kLEDCnt; k >= 0; --k) {
+      for (int k = kLEDCnt-1; k >= 0; --k) {
       //for (int k = 0; k < kLEDCnt; ++k) {
         if ((!meteorRandomDecay) || ((rand() % 10) > 5)) {
           fadeToBlack(matrix[i], k, meteorTrailDecay);
@@ -57,21 +60,97 @@ void effect(struct strand *s, int w, int h) {
 
       //for (int k = 0; k < meteorSize; ++k) {
         for (int k = 0; k < meteorSize; ++k) {
+
         if ((j - k < kLEDCnt) && (j - k >= 0)) {
           matrix[i][(j - k) * 3 + 0] = 0x00;
           matrix[i][(j - k) * 3 + 1] = 0x00;
           matrix[i][(j - k) * 3 + 2] = 0xdd;
+          //fprintf(stderr, "k,%d\n", (j - k) * 3 + 1);
         }
       }
 
       if (send(s[i].sock, matrix[i], kLEDCnt*3, 0) < 0) {
-        fprintf(stderr, "Send failed");
+        fprintf(stderr, "Send failed on i,%d\n", i);
+        fprintf(stderr, "Send failed on kLEDCnt,%d\n", kLEDCnt*3);
         return;
       }
-      usleep(8000);
+      usleep(2000);
     }
   }
 }
+
+
+
+int createConnection(struct strand *s) {
+  struct sockaddr_in server;
+
+  s->sock = socket(AF_INET, SOCK_DGRAM, 0);
+  if (s->sock == -1) {
+    fprintf(stderr, "Could not create socket");
+    return 0;
+  }
+
+  char addr[32];
+  sprintf(addr, "192.168.1.%d", s->host);
+  server.sin_addr.s_addr = inet_addr(addr);
+  server.sin_family = AF_INET;
+  server.sin_port = htons(5000);
+
+  if (connect(s->sock, (struct sockaddr*)&server, sizeof(server)) < 0) {
+    perror("connect failed. Error");
+    return 0;
+  }
+
+  return 1;
+}
+
+int main(int c, char **v) {
+  int w = 0, h = 0;
+  if (c > 1) w = atoi(v[1]);
+  if (c > 2) h = atoi(v[2]);
+  if (w <= 0) w = 80;
+  if (h <= 0) h = 120;
+
+  struct strand strands[kStrandCnt];
+  strands[0].host = 208;
+  strands[1].host = 219;
+  //strands[2].host = 205;
+  //strands[3].host = 214;
+  //strands[4].host = 218;
+  /*strands[3].host = 201;
+  strands[4].host = 204;
+  strands[5].host = 203;
+  strands[6].host = 204;
+  strands[7].host = 206;
+  strands[8].host = 210;
+  strands[9].host = 217;
+  strands[17].host = 206;
+  strands[18].host = 209;
+  strands[19].host = 203;
+  */
+  
+
+  for (int i = 0; i < kStrandCnt; ++i)
+    createConnection(&strands[i]);
+
+  for (int i =0; i < kStrandCnt + 1; ++i) {
+    effect(&strands[i], w, h);
+    usleep(8000);
+  }
+  fprintf(stderr, "Done with pattern");
+
+  for (int i = 0; i < kStrandCnt; ++i)
+    close(strands[i].sock);
+
+  return 0;
+}
+
+
+
+
+
+
+
 
 /*
 void effect(struct strand *s, int w, int h) {
@@ -122,58 +201,3 @@ void effect(struct strand *s, int w, int h) {
   }
 }
 */
-
-int createConnection(struct strand *s) {
-  struct sockaddr_in server;
-
-  s->sock = socket(AF_INET, SOCK_DGRAM, 0);
-  if (s->sock == -1) {
-    fprintf(stderr, "Could not create socket");
-    return 0;
-  }
-
-  char addr[32];
-  sprintf(addr, "192.168.1.%d", s->host);
-  server.sin_addr.s_addr = inet_addr(addr);
-  server.sin_family = AF_INET;
-  server.sin_port = htons(5000);
-
-  if (connect(s->sock, (struct sockaddr*)&server, sizeof(server)) < 0) {
-    perror("connect failed. Error");
-    return 0;
-  }
-
-  return 1;
-}
-
-int main(int c, char **v) {
-  int w = 0, h = 0;
-  if (c > 1) w = atoi(v[1]);
-  if (c > 2) h = atoi(v[2]);
-  if (w <= 0) w = 80;
-  if (h <= 0) h = 120;
-
-  struct strand strands[kStrandCnt];
-
-  strands[0].host = 208;
-  //strands[1].host = 205;
-  //strands[2].host = 218;
-  /*strands[3].host = 201;
-  strands[4].host = 202;
-  strands[5].host = 203;
-  strands[6].host = 204;
-  strands[7].host = 206;
-  strands[8].host = 207;
-  */
-  
-
-  for (int i = 0; i < kStrandCnt; ++i)
-    createConnection(&strands[i]);
-
-  effect(strands, w, h);
-
-  for (int i = 0; i < kStrandCnt; ++i)
-    close(strands[i].sock);
-
-  return 0;
-}

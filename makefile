@@ -1,7 +1,7 @@
 
 CPP=g++
 CFLAGS=-Wall -g
-OBJ=client.o 
+OBJ=shootup.o 
 
 %.o: %.c
 	$(CPP) -c -o $@ $^ $(CFLAGS)
