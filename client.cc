@@ -27,8 +27,8 @@ static volatile int flash_ = 0;
 static volatile bool do_snake = false;
 static std::map<int, int> strand_map;
 
-static volatile int comet_matrix_lr[kStrandCnt];
-static volatile int comet_matrix_rl[kStrandCnt];
+static volatile int comet_matrix_lr[kStrandCnt][kLEDCnt];
+static volatile int comet_matrix_rl[kStrandCnt][kLEDCnt];
 
 struct strand {
   int sock;
@@ -63,14 +63,14 @@ void input_thread(){
       do_snake = !do_snake;
     } else if (buffer[0] == 'c') {
       if (buffer[1] == 'r')
-        comet_matrix_rl[0] = 128;
+        comet_matrix_rl[0][10] = 128;
       else if (buffer[1] == 'l')
-        comet_matrix_lr[kStrandCnt - 1] = 128;
+        comet_matrix_lr[kStrandCnt - 1][10] = 128;
       else {
         const int strand = atoi(buffer + 1);
         if (strand >= 0 && strand < kStrandCnt) {
-          comet_matrix_lr[strand] = 128;
-          comet_matrix_rl[strand] = 128;
+          comet_matrix_lr[strand][10] = 128;
+          comet_matrix_rl[strand][10] = 128;
         }
       }
     }
@@ -94,6 +94,10 @@ void read_strands_thread(int sock){
     const int value = (magnitude / 10.0) - kGravity;
     const int moving_average = moving_window_average(value, board_idx);
     l_[board_idx] = std::min(80, std::max(1, moving_average));
+    if (moving_average > 100) {
+      comet_matrix_lr[board_idx][board_idx] = 128;
+      comet_matrix_rl[board_idx][board_idx] = 128;
+    }
   }
 }
 
@@ -139,46 +143,48 @@ void snake(char matrix[kStrandCnt][kLEDCnt * 3]) {
 }
 
 void display_comet_rl(char matrix[kStrandCnt][kLEDCnt * 3]) {
-  const int kLineNumber = 10;
   const int kCometTail = 10;
-  int highest_strand = -1;
 
-  for (int i = 0; i < kStrandCnt; ++i) {
-    if (comet_matrix_rl[i] != 0) {
-      matrix[i][(kLineNumber * 3) + 0] = comet_matrix_rl[i];
-      matrix[i][(kLineNumber * 3) + 1] = comet_matrix_rl[i];
-      matrix[i][(kLineNumber * 3) + 2] = comet_matrix_rl[i];
-      highest_strand = i;
-      comet_matrix_rl[i] = comet_matrix_rl[i] - kCometTail;
-      if (comet_matrix_rl[i] < 0)
-        comet_matrix_rl[i] = 0;
+  for (int j = 0; j < kLEDCnt; ++j) {
+    int highest_strand = -1;
+    for (int i = 0; i < kStrandCnt; ++i) {
+      if (comet_matrix_rl[i][j] != 0) {
+        matrix[i][(j * 3) + 0] = comet_matrix_rl[i][j];
+        matrix[i][(j * 3) + 1] = comet_matrix_rl[i][j];
+        matrix[i][(j * 3) + 2] = comet_matrix_rl[i][j];
+        highest_strand = i;
+        comet_matrix_rl[i][j] = comet_matrix_rl[i][j] - kCometTail;
+        if (comet_matrix_rl[i][j] < 0)
+          comet_matrix_rl[i][j] = 0;
+      }
     }
-  }
 
-  if (highest_strand != -1 && highest_strand != kStrandCnt) {
-    comet_matrix_rl[highest_strand + 1] = 128;
+    if (highest_strand != -1 && highest_strand < kStrandCnt) {
+      comet_matrix_rl[highest_strand + 1][j] = 128;
+    }
   }
 }
 
 void display_comet_lr(char matrix[kStrandCnt][kLEDCnt * 3]) {
-  const int kLineNumber = 10;
   const int kCometTail = 10;
-  int lowest_strand = kStrandCnt;
 
-  for (int i = kStrandCnt - 1; i >= 0; --i) {
-    if (comet_matrix_lr[i] != 0) {
-      matrix[i][(kLineNumber * 3) + 0] = comet_matrix_lr[i];
-      matrix[i][(kLineNumber * 3) + 1] = comet_matrix_lr[i];
-      matrix[i][(kLineNumber * 3) + 2] = comet_matrix_lr[i];
-      lowest_strand = i;
-      comet_matrix_lr[i] = comet_matrix_lr[i] - kCometTail;
-      if (comet_matrix_lr[i] < 0)
-        comet_matrix_lr[i] = 0;
+  for (int j = 0; j < kLEDCnt; ++j) {
+    int lowest_strand = kStrandCnt;
+    for (int i = kStrandCnt - 1; i >= 0; --i) {
+      if (comet_matrix_lr[i][j] != 0) {
+        matrix[i][(j * 3) + 0] = comet_matrix_lr[i][j];
+        matrix[i][(j * 3) + 1] = comet_matrix_lr[i][j];
+        matrix[i][(j * 3) + 2] = comet_matrix_lr[i][j];
+        lowest_strand = i;
+        comet_matrix_lr[i][j] = comet_matrix_lr[i][j] - kCometTail;
+        if (comet_matrix_lr[i][j] < 0)
+          comet_matrix_lr[i][j] = 0;
+      }
     }
-  }
 
-  if (lowest_strand != 0 && lowest_strand != kStrandCnt) {
-    comet_matrix_lr[lowest_strand - 1] = 128;
+    if (lowest_strand != 0 && lowest_strand != kStrandCnt) {
+      comet_matrix_lr[lowest_strand - 1][j] = 128;
+    }
   }
 }
 
@@ -229,9 +235,12 @@ void setup(double matrix[kStrandCnt][kLEDCnt * 3]) {
         matrix[i][j * 3 + 2] = b;
       }
     }
-
-    comet_matrix_rl[i] = 0;
-    comet_matrix_lr[i] = 0;
+  }
+  for (int i = 0; i < kStrandCnt; ++i) {
+    for (int j = 0; j < kLEDCnt; ++j) {
+      comet_matrix_rl[i][j] = 0;
+      comet_matrix_lr[i][j] = 0;
+    }
   }
 }
 
