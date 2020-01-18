@@ -95,8 +95,9 @@ void read_strands_thread(int sock){
     const int moving_average = moving_window_average(value, board_idx);
     l_[board_idx] = std::min(80, std::max(1, moving_average));
     if (moving_average > 100) {
-      comet_matrix_lr[board_idx][board_idx] = 128;
-      comet_matrix_rl[board_idx][board_idx] = 128;
+      const int led_idx = rand() % kLEDCnt;
+      comet_matrix_lr[board_idx][led_idx] = 128;
+      comet_matrix_rl[board_idx][led_idx] = 128;
     }
   }
 }
@@ -308,6 +309,8 @@ int create_connection_read(in_addr_t addr, int* sock, int port) {
 int main(int c, char **v) {
   struct strand strands[kStrandCnt];
   int read_sock = -1;
+
+  srand(time(NULL));
 
   strands[ 0].host = 203;
   strands[ 1].host = 209;
