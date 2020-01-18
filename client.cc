@@ -115,7 +115,7 @@ void flash(char matrix[kStrandCnt][kLEDCnt * 3]) {
   const int kLineNumber = 10;
   const int strand = flash_ - 1;
 
-  if (strand) {
+  if (strand >= 0) {
     matrix[strand][(kLineNumber * 3) + 0] = 128;
     matrix[strand][(kLineNumber * 3) + 1] = 128;
     matrix[strand][(kLineNumber * 3) + 2] = 128;
