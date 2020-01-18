@@ -6,9 +6,9 @@
 #include <string.h>
 #include <unistd.h>
 
-static const int kStrandCnt = 2;
+static const int kStrandCnt = 19;
 static const int kLEDCnt = 120;
-static const int newkStrandCnt = 1;
+static const int singlekStrandCnt = 1;
 
 struct strand {
   int sock;
@@ -33,24 +33,26 @@ void fadeToBlack(char *leds, int num, char fadeValue) {
 }
 
 void effect(struct strand *s, int w, int h) {
-  char matrix[kStrandCnt][kLEDCnt * 3];
+  char matrix[singlekStrandCnt][kLEDCnt * 3];
   int meteorTrailDecay = 64;
   int meteorRandomDecay = 1;
   int meteorSize = 10;
 
-  for (int i = 0; i < kStrandCnt; ++i) {
+//Blanking loop - will set colors of all leds before the pattern
+  for (int i = 0; i < singlekStrandCnt; ++i) {
     //for (int j = kLEDCnt; j <= 0; --j) {
     for (int j = 0; j < kLEDCnt; ++j) {
       matrix[i][j *3 + 0] = 0x0;
       matrix[i][j *3 + 1] = 0x0;
       matrix[i][j *3 + 2] = 0x0;
     }
+    //sleep(2);
   }
 
 
   for (int j = kLEDCnt + kLEDCnt; j > 0; --j) { 
   //for (int j = 0; j < kLEDCnt + kLEDCnt; ++j) {
-    for (int i = 0; i < kStrandCnt; ++i) {
+    for (int i = 0; i < singlekStrandCnt; ++i) {
       for (int k = kLEDCnt-1; k >= 0; --k) {
       //for (int k = 0; k < kLEDCnt; ++k) {
         if ((!meteorRandomDecay) || ((rand() % 10) > 5)) {
@@ -79,7 +81,17 @@ void effect(struct strand *s, int w, int h) {
   }
 }
 
-
+/*void cascade(int startIndex, int endIndex){
+  int steps = (endIndex + 1 - startIndex);
+  int i = (startIndex + endIndex)>>1;
+  //int stepdir = 1;
+  for (int q=0; q < steps; q++) {
+   int index = i + ( q% 2 == 0 ? q/2 : -(q/2+1)); //index lookup here
+   fprintf(stderr, "printing index value%d\n", index);
+   effect(&strands[index], w, h);
+}
+}
+*/
 
 int createConnection(struct strand *s) {
   struct sockaddr_in server;
@@ -112,31 +124,56 @@ int main(int c, char **v) {
   if (h <= 0) h = 120;
 
   struct strand strands[kStrandCnt];
-  strands[0].host = 208;
-  strands[1].host = 219;
-  //strands[2].host = 205;
-  //strands[3].host = 214;
-  //strands[4].host = 218;
-  /*strands[3].host = 201;
-  strands[4].host = 204;
-  strands[5].host = 203;
-  strands[6].host = 204;
-  strands[7].host = 206;
-  strands[8].host = 210;
-  strands[9].host = 217;
-  strands[17].host = 206;
-  strands[18].host = 209;
   strands[19].host = 203;
-  */
+  strands[18].host = 209;
+  strands[17].host = 206;
+  strands[16].host = 201;
+  strands[15].host = 200;
+  strands[14].host = 213;
+  strands[13].host = 210;
+  strands[12].host = 207;
+  strands[11].host = 202;
+  strands[10].host = 216;
+  strands[ 9].host = 220;
+  strands[ 8].host = 205;
+  strands[ 7].host = 217;
+  strands[ 6].host = 212;
+  strands[ 5].host = 218;
+  strands[ 4].host = 204;
+  strands[ 3].host = 211;
+  strands[ 2].host = 214;
+  strands[ 1].host = 219;
+  strands[ 0].host = 208;
   
 
   for (int i = 0; i < kStrandCnt; ++i)
     createConnection(&strands[i]);
+  
+  int startIndex =0;
+  int endIndex = kStrandCnt;
+  int steps = (endIndex + 1 - startIndex);
+  int i = (startIndex + endIndex)>>1;
+  //int stepdir = 1;
+  for (int q=0; q < steps; q++) {
+   int index = i + ( q% 2 == 0 ? q/2 : -(q/2+1)); //index lookup here
+   fprintf(stderr, "printing index value%d\n", index);
+   effect(&strands[index], w, h);
+   usleep(10);
+}
+  /*
+  effect(&strands[0], w, h);
+  fprintf(stderr, "Sending to strand 1\n");
+  sleep(2);
+  effect(&strands[1], w, h);
+  fprintf(stderr, "Sending to strand 1\n");
+  sleep(2);
+  */
+  //effect(&strands[1], w, h);
 
-  for (int i =0; i < kStrandCnt + 1; ++i) {
-    effect(&strands[i], w, h);
-    usleep(8000);
-  }
+  //for (int i =0; i < kStrandCnt - 1; ++i) {
+    //effect(&strands[i], w, h);
+    //sleep(2);
+  //}
   fprintf(stderr, "Done with pattern");
 
   for (int i = 0; i < kStrandCnt; ++i)
