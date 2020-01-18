@@ -160,7 +160,7 @@ void display_comet_rl(char matrix[kStrandCnt][kLEDCnt * 3]) {
       }
     }
 
-    if (highest_strand != -1 && highest_strand < kStrandCnt) {
+    if (highest_strand != -1 && highest_strand < (kStrandCnt - 1)) {
       comet_matrix_rl[highest_strand + 1][j] = 128;
     }
   }
