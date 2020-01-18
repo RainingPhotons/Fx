@@ -189,6 +189,28 @@ void display_comet_lr(char matrix[kStrandCnt][kLEDCnt * 3]) {
   }
 }
 
+void togetherness(char matrix[kStrandCnt][kLEDCnt * 3]) {
+  for (int i = 0; i < kStrandCnt; ++i) {
+    if (l_[i] > 10.0) {
+      int j;
+      for (j = i + 1; j < kStrandCnt; ++j) {
+        if (l_[j] < 10.0)
+          break;
+      }
+      // grouped strands
+      if (j - i > 1) {
+        for (int k = i; k < j; ++k) {
+          for (int l = 0; l < kLEDCnt; ++l) {
+            matrix[k][l * 3 + 0] = 255;//r;
+            matrix[k][l * 3 + 1] = 255;//g;
+            matrix[k][l * 3 + 2] = 255;//b;
+          }
+        }
+      }
+    }
+  }
+}
+
 void effect(double matrix[kStrandCnt][kLEDCnt * 3],
             char output_matrix[kStrandCnt][kLEDCnt * 3]) {
   for (int i = 0; i < kStrandCnt; ++i) {
@@ -260,6 +282,7 @@ void loop(struct strand *s) {
     snake(output_matrix);
     display_comet_rl(output_matrix);
     display_comet_lr(output_matrix);
+    togetherness(output_matrix);
     display(s, output_matrix);
 
     // delay until time to iterate again
