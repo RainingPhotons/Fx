@@ -28,6 +28,7 @@ static volatile int flash_ = 0;
 static volatile bool do_snake = false;
 static std::map<int, int> strand_map;
 
+static volatile bool out_of_position[kStrandCnt] = {false};
 static volatile int x_ss[kStrandCnt];
 static volatile int y_ss[kStrandCnt];
 static volatile int z_ss[kStrandCnt];
@@ -85,6 +86,13 @@ void input_thread(){
   }
 }
 
+bool is_out_of_position(int x, int y, int  z, int board_idx) {
+  return
+    std::abs(x_ss[board_idx] - x) > x_threshold[board_idx] ||
+    std::abs(y_ss[board_idx] - y) > y_threshold[board_idx] ||
+    std::abs(z_ss[board_idx] - z) > z_threshold[board_idx];
+}
+
 void read_strands_thread(int sock){
   char buffer[kMaxLine];
   int16_t *buffer_ptr = (int16_t *)buffer;
@@ -94,18 +102,22 @@ void read_strands_thread(int sock){
       keepRunning = 0;
       fprintf(stderr, "error\n");
     }
-    const int board_idx = strand_map[buffer_ptr[0]];
-    const int x = buffer_ptr[1];
-    const int y = buffer_ptr[2];
-    const int z = buffer_ptr[3];
-    const double magnitude = sqrt(x*x + y*y + z*z);
-    const int value = (magnitude / 10.0) - kGravity;
-    const int moving_average = moving_window_average(value, board_idx);
-    l_[board_idx] = std::min(80, std::max(1, moving_average));
-    if (moving_average > 100) {
-      const int led_idx = rand() % kLEDCnt;
-      comet_matrix_lr[board_idx][led_idx] = 128;
-      comet_matrix_rl[board_idx][led_idx] = 128;
+    const uint32_t board_idx = strand_map[buffer_ptr[0]];
+    if (board_idx < kStrandCnt) {
+      const int x = buffer_ptr[1];
+      const int y = buffer_ptr[2];
+      const int z = buffer_ptr[3];
+      const double magnitude = sqrt(x*x + y*y + z*z);
+      const int value = (magnitude / 10.0) - kGravity;
+      const int moving_average = moving_window_average(value, board_idx);
+      l_[board_idx] = std::min(80, std::max(1, moving_average));
+      if (moving_average > 100) {
+        const int led_idx = rand() % kLEDCnt;
+        comet_matrix_lr[board_idx][led_idx] = 128;
+        comet_matrix_rl[board_idx][led_idx] = 128;
+      }
+
+      out_of_position[board_idx] = is_out_of_position(x, y, z, board_idx);
     }
   }
 }
@@ -199,10 +211,10 @@ void display_comet_lr(char matrix[kStrandCnt][kLEDCnt * 3]) {
 
 void togetherness(char matrix[kStrandCnt][kLEDCnt * 3]) {
   for (int i = 0; i < kStrandCnt; ++i) {
-    if (l_[i] > 10.0) {
-      int j;
+    if (out_of_position[i]) {
+      int j = 0;
       for (j = i + 1; j < kStrandCnt; ++j) {
-        if (l_[j] < 10.0)
+        if (!out_of_position[j])
           break;
       }
       // grouped strands
@@ -359,6 +371,7 @@ void compute_strands_ss(int sock) {
     y_threshold[i] = (y_max[i] - y_min[i])/2 + kExtraTolerance;
     z_threshold[i] = (z_max[i] - z_min[i])/2 + kExtraTolerance;
   }
+  printf("done!\n");
 }
 
 int create_connection(in_addr_t addr, int* sock, int port, int read) {
