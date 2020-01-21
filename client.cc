@@ -17,6 +17,7 @@ static const int kLEDCnt = 120;
 static const int kMaxLine = 8;
 static const int kGravity = 800;
 static const int kWindowSize = 8;
+static const int kExtraTolerance = 450;
 static volatile int keepRunning = 1;
 static volatile double s_ = 100.0;
 static volatile double l_[kStrandCnt];
@@ -26,6 +27,13 @@ static volatile int mw_idx[kStrandCnt];
 static volatile int flash_ = 0;
 static volatile bool do_snake = false;
 static std::map<int, int> strand_map;
+
+static volatile int x_ss[kStrandCnt];
+static volatile int y_ss[kStrandCnt];
+static volatile int z_ss[kStrandCnt];
+static volatile int x_threshold[kStrandCnt];
+static volatile int y_threshold[kStrandCnt];
+static volatile int z_threshold[kStrandCnt];
 
 static volatile int comet_matrix_lr[kStrandCnt][kLEDCnt];
 static volatile int comet_matrix_rl[kStrandCnt][kLEDCnt];
@@ -291,6 +299,68 @@ void loop(struct strand *s) {
   }
 }
 
+void compute_strands_ss(int sock) {
+  char buffer[kMaxLine];
+  int16_t *buffer_ptr = (int16_t *)buffer;
+
+  std::chrono::system_clock::time_point end_time =
+    std::chrono::system_clock::now();
+  end_time += std::chrono::seconds(5);
+
+  int64_t x_sum[kStrandCnt] = {0};
+  int64_t y_sum[kStrandCnt] = {0};
+  int64_t z_sum[kStrandCnt] = {0};
+  int64_t cnt[kStrandCnt] = {0};
+  int x_max[kStrandCnt], x_min[kStrandCnt];
+  int y_max[kStrandCnt], y_min[kStrandCnt];
+  int z_max[kStrandCnt], z_min[kStrandCnt];
+
+  std::fill_n (x_max, kStrandCnt, std::numeric_limits<int>::min());
+  std::fill_n (y_max, kStrandCnt, std::numeric_limits<int>::min());
+  std::fill_n (z_max, kStrandCnt, std::numeric_limits<int>::min());
+  std::fill_n (x_min, kStrandCnt, std::numeric_limits<int>::max());
+  std::fill_n (y_min, kStrandCnt, std::numeric_limits<int>::max());
+  std::fill_n (z_min, kStrandCnt, std::numeric_limits<int>::max());
+
+  printf("Please wait for the strands to calibrate\n");
+  do {
+    if (0 > read(sock, buffer, kMaxLine)) {
+      keepRunning = 0;
+      fprintf(stderr, "error\n");
+    }
+    const uint32_t board_idx = strand_map[buffer_ptr[0]];
+    if (board_idx < kStrandCnt) {
+      const int x = buffer_ptr[1];
+      const int y = buffer_ptr[2];
+      const int z = buffer_ptr[3];
+      x_sum[board_idx] += x;
+      y_sum[board_idx] += y;
+      z_sum[board_idx] += z;
+
+      x_max[board_idx] = std::max(x_max[board_idx], x);
+      x_min[board_idx] = std::min(x_min[board_idx], x);
+
+      y_max[board_idx] = std::max(y_max[board_idx], y);
+      y_min[board_idx] = std::min(y_min[board_idx], y);
+
+      z_max[board_idx] = std::max(z_max[board_idx], z);
+      z_min[board_idx] = std::min(z_min[board_idx], z);
+      cnt[board_idx]++;
+    }
+    if (std::chrono::system_clock::now() > end_time)
+      break;
+  } while (keepRunning);
+
+  for (int i = 0; i < kStrandCnt; ++i) {
+    x_ss[i] = x_sum[i] / cnt[i];
+    y_ss[i] = y_sum[i] / cnt[i];
+    z_ss[i] = z_sum[i] / cnt[i];
+    x_threshold[i] = (x_max[i] - x_min[i])/2 + kExtraTolerance;
+    y_threshold[i] = (y_max[i] - y_min[i])/2 + kExtraTolerance;
+    z_threshold[i] = (z_max[i] - z_min[i])/2 + kExtraTolerance;
+  }
+}
+
 int create_connection(in_addr_t addr, int* sock, int port, int read) {
   struct sockaddr_in server;
 
@@ -329,6 +399,7 @@ int create_connection_write(int host, int* sock, int port) {
 int create_connection_read(in_addr_t addr, int* sock, int port) {
   return create_connection(addr, sock, port, 1);
 }
+
 int main(int c, char **v) {
   struct strand strands[kStrandCnt];
   int read_sock = -1;
@@ -372,6 +443,7 @@ int main(int c, char **v) {
   std::thread thread_input_id(input_thread);
 
   create_connection_read(INADDR_ANY, &read_sock, 5002);
+  compute_strands_ss(read_sock);
   std::thread thread_read_id(read_strands_thread, read_sock);
 
   for (int i = 0; i < kStrandCnt; ++i)
