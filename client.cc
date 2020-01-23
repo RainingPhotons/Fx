@@ -168,6 +168,10 @@ void display_comet_lr(char matrix[kStrandCnt][kLEDCnt * 3]) {
 }
 
 void togetherness(char matrix[kStrandCnt][kLEDCnt * 3]) {
+  static double pulse = 0.5;
+  static const double increment = 0.01;
+  static const double max_pulse = 2.0;
+
   for (int i = 0; i < kStrandCnt; ++i) {
     if (out_of_position[i]) {
       int j = 0;
@@ -177,17 +181,24 @@ void togetherness(char matrix[kStrandCnt][kLEDCnt * 3]) {
       }
       // grouped strands
       if (j - i > 1) {
+        const char r = (char)((double)matrix[i][0] * pulse);
+        const char g = (char)((double)matrix[i][1] * pulse);
+        const char b = (char)((double)matrix[i][2] * pulse);
         for (int k = i; k < j; ++k) {
           for (int l = 0; l < kLEDCnt; ++l) {
-            matrix[k][l * 3 + 0] = 255;//r;
-            matrix[k][l * 3 + 1] = 255;//g;
-            matrix[k][l * 3 + 2] = 255;//b;
+            matrix[k][l * 3 + 0] = r;
+            matrix[k][l * 3 + 1] = g;
+            matrix[k][l * 3 + 2] = b;
           }
         }
         i = j;
       }
     }
   }
+
+  pulse += increment;
+  if (pulse > max_pulse)
+    pulse = 0.5;
 }
 
 void sparkles(char output_matrix[kStrandCnt][kLEDCnt * 3]) {
