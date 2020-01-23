@@ -173,16 +173,18 @@ void firework(char matrix[kStrandCnt][kLEDCnt * 3])  {
   if (do_firework) {
 
     for (int j = 0; j < kLEDCnt; ++j) {
-      for (int i =0; i < kStrandCnt; ++i)  {
+      //for (int i =0; i < kStrandCnt; ++i)  {
+        i = 10;
         matrix[i][j *3 + 0] = 0x0;
         matrix[i][j *3 + 1] = 0x0;
         matrix[i][j *3 + 2] = 0x0;
-      }
+      //}
     }
 
       for (int j = kLEDCnt + kLEDCnt; j > 0; --j) { 
       //for (int j = 0; j < kLEDCnt + kLEDCnt; ++j) {
-        for (int i = 0; i < kStrandCnt; ++i) {
+        //for (int i = 0; i < kStrandCnt; ++i) {
+          int i = 10;
           for (int k = kLEDCnt-1; k >= 0; --k) {
           //for (int k = 0; k < kLEDCnt; ++k) {
             if ((!meteorRandomDecay) || ((rand() % 10) > 5)) {
@@ -200,7 +202,7 @@ void firework(char matrix[kStrandCnt][kLEDCnt * 3])  {
               //fprintf(stderr, "k,%d\n", (j - k) * 3 + 1);
             }
           }
-        }
+        //}
       }
     }
 }
