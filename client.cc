@@ -190,6 +190,17 @@ void togetherness(char matrix[kStrandCnt][kLEDCnt * 3]) {
   }
 }
 
+void sparkles(char output_matrix[kStrandCnt][kLEDCnt * 3]) {
+  for (int i = 0; i < kStrandCnt; ++i) {
+    if (out_of_position[i]) {
+      const int led_idx = rand() % kLEDCnt;
+      output_matrix[i][led_idx * 3 + 0] = 255;
+      output_matrix[i][led_idx * 3 + 1] = 255;
+      output_matrix[i][led_idx * 3 + 2] = 255;
+    }
+  }
+}
+
 void effect(double matrix[kStrandCnt][kLEDCnt * 3],
             char output_matrix[kStrandCnt][kLEDCnt * 3]) {
   for (int i = 0; i < kStrandCnt; ++i) {
@@ -260,6 +271,7 @@ void loop(int* sock) {
     display_comet_rl(output_matrix);
     display_comet_lr(output_matrix);
     togetherness(output_matrix);
+    sparkles(output_matrix);
     display(sock, output_matrix);
 
     // delay until time to iterate again
