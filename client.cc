@@ -375,32 +375,48 @@ void compute_strands_ss(int sock) {
   printf("done!\n");
 }
 
+int order_strands(struct strand *strands) {
+  FILE *fp;
+  fp = fopen("order.txt", "r");
+
+  int i = 0;
+
+  if (fp) {
+    char * line = NULL;
+    size_t len = 0;
+    ssize_t read;
+
+    while ((read = getline(&line, &len, fp)) != -1) {
+      if (i >= kStrandCnt) {
+        fprintf(stderr, "Too many strands (>%d)\n", i);
+        i = 0;
+        break;
+      }
+      int strand_number = atoi(line);
+      if (strand_number < 200 || strand_number > 256) {
+        fprintf(stderr, "Bad file, number out of range (%d)\n", strand_number);
+        i = 0;
+        break;
+      }
+      strands[i++].host = strand_number;
+    }
+
+    fclose (fp);
+  }
+
+  return i;
+}
+
 int main(int c, char **v) {
   struct strand strands[kStrandCnt];
   int read_sock = -1;
 
   srand(time(NULL));
 
-  strands[ 0].host = 203;
-  strands[ 1].host = 209;
-  strands[ 2].host = 206;
-  strands[ 3].host = 201;
-  strands[ 4].host = 200;
-  strands[ 5].host = 213;
-  strands[ 6].host = 210;
-  strands[ 7].host = 207;
-  strands[ 8].host = 202;
-  strands[ 9].host = 216;
-  strands[10].host = 220;
-  strands[11].host = 205;
-  strands[12].host = 217;
-  strands[13].host = 212;
-  strands[14].host = 218;
-  strands[15].host = 204;
-  strands[16].host = 211;
-  strands[17].host = 214;
-  strands[18].host = 219;
-  strands[19].host = 208;
+  if (order_strands(strands) == 0) {
+    fprintf(stderr, "Exiting due to ordering file errors.");
+    return -1;
+  }
 
   for (int i = 0; i < kStrandCnt; ++i)
     l_[i] = 5.0;
