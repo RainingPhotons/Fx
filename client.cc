@@ -40,11 +40,6 @@ static volatile int z_threshold[kStrandCnt];
 static volatile int comet_matrix_lr[kStrandCnt][kLEDCnt];
 static volatile int comet_matrix_rl[kStrandCnt][kLEDCnt];
 
-struct strand {
-  int sock;
-  int host;
-};
-
 int moving_window_average(int new_value, int idx) {
   moving_window_sum[idx] += new_value;
   moving_window_sum[idx] -= moving_window[idx][mw_idx[idx]];
@@ -123,9 +118,9 @@ void read_strands_thread(int sock){
   }
 }
 
-void display(struct strand *s, char matrix[kStrandCnt][kLEDCnt * 3]) {
+void display(int *sock, char matrix[kStrandCnt][kLEDCnt * 3]) {
   for (int i = 0; i < kStrandCnt; ++i) {
-    if (send(s[i].sock, matrix[i], kLEDCnt*3, 0) < 0) {
+    if (send(sock[i], matrix[i], kLEDCnt*3, 0) < 0) {
       fprintf(stderr, "Send failed");
       return;
     }
@@ -288,7 +283,7 @@ void setup(double matrix[kStrandCnt][kLEDCnt * 3]) {
   }
 }
 
-void loop(struct strand *s) {
+void loop(int* sock) {
   double matrix[kStrandCnt][kLEDCnt * 3];
   char output_matrix[kStrandCnt][kLEDCnt * 3];
 
@@ -304,7 +299,7 @@ void loop(struct strand *s) {
     display_comet_rl(output_matrix);
     display_comet_lr(output_matrix);
     togetherness(output_matrix);
-    display(s, output_matrix);
+    display(sock, output_matrix);
 
     // delay until time to iterate again
     time_point += std::chrono::milliseconds(25);
@@ -375,45 +370,14 @@ void compute_strands_ss(int sock) {
   printf("done!\n");
 }
 
-int order_strands(struct strand *strands) {
-  FILE *fp;
-  fp = fopen("order.txt", "r");
-
-  int i = 0;
-
-  if (fp) {
-    char * line = NULL;
-    size_t len = 0;
-    ssize_t read;
-
-    while ((read = getline(&line, &len, fp)) != -1) {
-      if (i >= kStrandCnt) {
-        fprintf(stderr, "Too many strands (>%d)\n", i);
-        i = 0;
-        break;
-      }
-      int strand_number = atoi(line);
-      if (strand_number < 200 || strand_number > 256) {
-        fprintf(stderr, "Bad file, number out of range (%d)\n", strand_number);
-        i = 0;
-        break;
-      }
-      strands[i++].host = strand_number;
-    }
-
-    fclose (fp);
-  }
-
-  return i;
-}
-
 int main(int c, char **v) {
-  struct strand strands[kStrandCnt];
+  int sock[kStrandCnt] = {0};
+  int host[kStrandCnt] = {0};
   int read_sock = -1;
 
   srand(time(NULL));
 
-  if (order_strands(strands) == 0) {
+  if (order_strands(host, kStrandCnt) == 0) {
     fprintf(stderr, "Exiting due to ordering file errors.");
     return -1;
   }
@@ -422,7 +386,7 @@ int main(int c, char **v) {
     l_[i] = 5.0;
 
   for (int i = 0; i < kStrandCnt; ++i)
-    strand_map.insert(std::make_pair(strands[i].host, i));
+    strand_map.insert(std::make_pair(host[i], i));
 
   for (int i = 0; i < kStrandCnt; ++i) {
     for (int j = 0; j < kWindowSize; ++j)
@@ -438,12 +402,12 @@ int main(int c, char **v) {
   std::thread thread_read_id(read_strands_thread, read_sock);
 
   for (int i = 0; i < kStrandCnt; ++i)
-    create_connection_write(strands[i].host, &strands[i].sock, 5000);
+    create_connection_write(host[i], &sock[i], 5000);
 
-  loop(strands);
+  loop(sock);
 
   for (int i = 0; i < kStrandCnt; ++i)
-    close(strands[i].sock);
+    close(sock[i]);
 
   thread_input_id.join();
   thread_read_id.join();
