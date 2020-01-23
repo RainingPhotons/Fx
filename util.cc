@@ -1,7 +1,7 @@
 #include <arpa/inet.h>
 #include <stdio.h>
 
-#include "connection.h"
+#include "util.h"
 
 int create_connection(in_addr_t addr, int* sock, int port, int read) {
   struct sockaddr_in server;

@@ -10,7 +10,7 @@
 #include <string.h>
 #include <unistd.h>
 
-#include "connection.h"
+#include "util.h"
 #include "hsluv.h"
 
 static const int kStrandCnt = 20;
