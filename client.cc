@@ -25,8 +25,6 @@ static volatile double l_[kStrandCnt];
 static volatile int moving_window[kStrandCnt][kWindowSize];
 static volatile int moving_window_sum[kStrandCnt];
 static volatile int mw_idx[kStrandCnt];
-static volatile int flash_ = 0;
-static volatile bool do_snake = false;
 static std::map<int, int> strand_map;
 
 static volatile bool out_of_position[kStrandCnt] = {false};
@@ -62,10 +60,6 @@ void input_thread(){
         l_[i] = atoi(buffer + 1);
     } else if (buffer[0] == 'q') {
       keepRunning = 0;
-    } else if (buffer[0] == 'f') {
-      flash_ = kStrandCnt + 1;
-    } else if (buffer[0] == 'n') {
-      do_snake = !do_snake;
     } else if (buffer[0] == 'c') {
       if (buffer[1] == 'r')
         comet_matrix_rl[0][10] = 128;
@@ -124,38 +118,6 @@ void display(int *sock, char matrix[kStrandCnt][kLEDCnt * 3]) {
       fprintf(stderr, "Send failed");
       return;
     }
-  }
-}
-
-void flash(char matrix[kStrandCnt][kLEDCnt * 3]) {
-  const int kLineNumber = 10;
-  const int strand = flash_ - 1;
-
-  if (strand >= 0) {
-    matrix[strand][(kLineNumber * 3) + 0] = 128;
-    matrix[strand][(kLineNumber * 3) + 1] = 128;
-    matrix[strand][(kLineNumber * 3) + 2] = 128;
-  }
-
-  if (flash_ > 0)
-    flash_--;
-}
-
-void snake(char matrix[kStrandCnt][kLEDCnt * 3]) {
-  static int pos = 0;
-  static const int kMaxPos = kStrandCnt * kLEDCnt;
-
-  if (do_snake) {
-    const int line_num = pos / kStrandCnt;
-    const int line_pos = pos % kStrandCnt;
-    const int line_pos_dir = (line_num % 2) ? (kStrandCnt - line_pos) : line_pos;
-
-    matrix[line_pos_dir][(line_num * 3) + 0] = 128;
-    matrix[line_pos_dir][(line_num * 3) + 1] = 128;
-    matrix[line_pos_dir][(line_num * 3) + 2] = 128;
-
-    if (pos++ > kMaxPos)
-      pos = 0;
   }
 }
 
@@ -294,8 +256,6 @@ void loop(int* sock) {
 
   while(keepRunning) {
     effect(matrix, output_matrix);
-    flash(output_matrix);
-    snake(output_matrix);
     display_comet_rl(output_matrix);
     display_comet_lr(output_matrix);
     togetherness(output_matrix);
