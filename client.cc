@@ -184,6 +184,7 @@ void togetherness(char matrix[kStrandCnt][kLEDCnt * 3]) {
             matrix[k][l * 3 + 2] = 255;//b;
           }
         }
+        i = j;
       }
     }
   }
