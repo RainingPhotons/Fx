@@ -19,6 +19,7 @@ static const int kMaxLine = 8;
 static const int kGravity = 800;
 static const int kWindowSize = 8;
 static const int kExtraTolerance = 450;
+static const double kStartingL = 5.0;
 static volatile int keepRunning = 1;
 static volatile double s_ = 100.0;
 static volatile double l_[kStrandCnt];
@@ -245,19 +246,15 @@ void effect(double matrix[kStrandCnt][kLEDCnt * 3],
 }
 
 void setup(double matrix[kStrandCnt][kLEDCnt * 3]) {
-  double ll[kStrandCnt] = { 0 };
   for (int i = 0; i < kStrandCnt; ++i) {
-    if (l_[i] != ll[i]) {
-      ll[i] = l_[i];
-      for (int j = 0; j < kLEDCnt; ++j) {
-        double h, r, g, b;
-        h = (j + (i * 10)) * (360.0 / (kLEDCnt + (kStrandCnt * 10)));
-        hsluv2rgb(h, s_, ll[i], &r, &g, &b);
+    for (int j = 0; j < kLEDCnt; ++j) {
+      double h, r, g, b;
+      h = (j + (i * 10)) * (360.0 / (kLEDCnt + (kStrandCnt * 10)));
+      hsluv2rgb(h, s_, kStartingL, &r, &g, &b);
 
-        matrix[i][j * 3 + 0] = r;
-        matrix[i][j * 3 + 1] = g;
-        matrix[i][j * 3 + 2] = b;
-      }
+      matrix[i][j * 3 + 0] = r;
+      matrix[i][j * 3 + 1] = g;
+      matrix[i][j * 3 + 2] = b;
     }
   }
   for (int i = 0; i < kStrandCnt; ++i) {
@@ -367,7 +364,7 @@ int main(int c, char **v) {
   }
 
   for (int i = 0; i < kStrandCnt; ++i)
-    l_[i] = 5.0;
+    l_[i] = kStartingL;
 
   for (int i = 0; i < kStrandCnt; ++i)
     strand_map.insert(std::make_pair(host[i], i));
