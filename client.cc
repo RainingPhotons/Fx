@@ -21,6 +21,7 @@ static const int kWindowSize = 8;
 static const int kExtraTolerance = 450;
 static const double kStartingL = 5.0;
 static volatile int keepRunning = 1;
+static volatile int intensity = 255;
 static volatile double s_ = 100.0;
 static volatile double l_[kStrandCnt];
 static volatile int moving_window[kStrandCnt][kWindowSize];
@@ -61,6 +62,8 @@ void input_thread(){
         l_[i] = atoi(buffer + 1);
     } else if (buffer[0] == 'q') {
       keepRunning = 0;
+    } else if (buffer[0] ==  'i') {
+      intensity = atoi(buffer + 1);
     } else if (buffer[0] == 'c') {
       if (buffer[1] == 'r')
         comet_matrix_rl[0][10] = 128;
@@ -113,16 +116,16 @@ void read_strands_thread(int sock){
   }
 }
 
-void display(int *sock, char matrix[kStrandCnt][kLEDCnt * 3]) {
+void display(int *sock, char matrix[kStrandCnt][(kLEDCnt * 3) + 1]) {
   for (int i = 0; i < kStrandCnt; ++i) {
-    if (send(sock[i], matrix[i], kLEDCnt*3, 0) < 0) {
+    if (send(sock[i], matrix[i], (kLEDCnt * 3) + 1, 0) < 0) {
       fprintf(stderr, "Send failed");
       return;
     }
   }
 }
 
-void display_comet_rl(char matrix[kStrandCnt][kLEDCnt * 3]) {
+void display_comet_rl(char matrix[kStrandCnt][(kLEDCnt * 3) + 1]) {
   const int kCometTail = 10;
 
   for (int j = 0; j < kLEDCnt; ++j) {
@@ -145,7 +148,7 @@ void display_comet_rl(char matrix[kStrandCnt][kLEDCnt * 3]) {
   }
 }
 
-void display_comet_lr(char matrix[kStrandCnt][kLEDCnt * 3]) {
+void display_comet_lr(char matrix[kStrandCnt][(kLEDCnt * 3 + 1)]) {
   const int kCometTail = 10;
 
   for (int j = 0; j < kLEDCnt; ++j) {
@@ -168,7 +171,7 @@ void display_comet_lr(char matrix[kStrandCnt][kLEDCnt * 3]) {
   }
 }
 
-void togetherness(char matrix[kStrandCnt][kLEDCnt * 3]) {
+void togetherness(char matrix[kStrandCnt][(kLEDCnt * 3) + 1]) {
   static double pulse = 0.5;
   static const double increment = 0.01;
   static const double max_pulse = 2.0;
@@ -202,7 +205,7 @@ void togetherness(char matrix[kStrandCnt][kLEDCnt * 3]) {
     pulse = 0.5;
 }
 
-void sparkles(char output_matrix[kStrandCnt][kLEDCnt * 3]) {
+void sparkles(char output_matrix[kStrandCnt][(kLEDCnt * 3) + 1]) {
   for (int i = 0; i < kStrandCnt; ++i) {
     if (out_of_position[i]) {
       const int led_idx = rand() % kLEDCnt;
@@ -214,7 +217,7 @@ void sparkles(char output_matrix[kStrandCnt][kLEDCnt * 3]) {
 }
 
 void effect(double matrix[kStrandCnt][kLEDCnt * 3],
-            char output_matrix[kStrandCnt][kLEDCnt * 3]) {
+            char output_matrix[kStrandCnt][(kLEDCnt * 3) + 1]) {
   for (int i = 0; i < kStrandCnt; ++i) {
     for (int j = 0; j < kLEDCnt; ++j) {
       double h, s, l, r, g, b;
@@ -242,6 +245,8 @@ void effect(double matrix[kStrandCnt][kLEDCnt * 3],
       output_matrix[i][j * 3 + 1] = g * 255.0;
       output_matrix[i][j * 3 + 2] = b * 255.0;
     }
+
+    output_matrix[i][kLEDCnt * 3] = intensity;
   }
 }
 
@@ -267,7 +272,7 @@ void setup(double matrix[kStrandCnt][kLEDCnt * 3]) {
 
 void loop(int* sock) {
   double matrix[kStrandCnt][kLEDCnt * 3];
-  char output_matrix[kStrandCnt][kLEDCnt * 3];
+  char output_matrix[kStrandCnt][(kLEDCnt * 3) + 1];
 
   setup(matrix);
 
