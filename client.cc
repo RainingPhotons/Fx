@@ -12,6 +12,7 @@
 
 #include "util.h"
 #include "hsluv.h"
+#include "sound.h"
 
 static const int kStrandCnt = 20;
 static const int kLEDCnt = 120;
@@ -270,6 +271,13 @@ void setup(double matrix[kStrandCnt][kLEDCnt * 3]) {
   }
 }
 
+void do_sound() {
+  for (int i = 0; i < kStrandCnt; ++i) {
+    if (out_of_position[i])
+      play_note(60 + i);
+  }
+}
+
 void loop(int* sock) {
   double matrix[kStrandCnt][kLEDCnt * 3];
   char output_matrix[kStrandCnt][(kLEDCnt * 3) + 1];
@@ -285,6 +293,7 @@ void loop(int* sock) {
     display_comet_lr(output_matrix);
     togetherness(output_matrix);
     sparkles(output_matrix);
+    do_sound();
     display(sock, output_matrix);
 
     // delay until time to iterate again
@@ -363,6 +372,8 @@ int main(int c, char **v) {
 
   srand(time(NULL));
 
+  initialize_sound();
+
   if (order_strands(host, kStrandCnt) == 0) {
     fprintf(stderr, "Exiting due to ordering file errors.");
     return -1;
@@ -399,6 +410,8 @@ int main(int c, char **v) {
   thread_read_id.join();
 
   close(read_sock);
+
+  destroy_sound();
 
   return 0;
 }
