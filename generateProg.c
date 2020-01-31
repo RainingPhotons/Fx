@@ -10,7 +10,6 @@
 #define TRI_CHORD 3
 #define NOTES_SCALE 12
 #define MID_C (5 * NOTES_SCALE)
-#define TICKS 1440 //TIme in ms
 #define ACT_CHAN 7
 
 /*
@@ -113,7 +112,7 @@ void playNow(unsigned int note)
     delete_fluid_event(ev);
 }
 
-int playMelody(int aChord[3], unsigned int uEndMelody)
+int playMelody(int aChord[3], int time_marker, int iMeasureTime, int iBeats)
 {
     fluid_event_t *ev = new_fluid_event();
     fluid_event_set_source(ev, -1);
@@ -124,16 +123,16 @@ int playMelody(int aChord[3], unsigned int uEndMelody)
     int iNote = aChord[0];
     int bChordNote = 1;
     unsigned int iMelTick = fluid_sequencer_get_tick(sequencer);
-    printf("melodyStart, %d, uMelodyEnd, %d, %s, %s, %s\n", iMelTick, uEndMelody,printNote(aChord[0]), printNote(aChord[1]), printNote(aChord[2]));
-    while(iMelTick < uEndMelody)
+    //printf("melodyStart, %d, uMelodyEnd, %d, %s, %s, %s\n", iMelTick, uEndMelody,printNote(aChord[0]), printNote(aChord[1]), printNote(aChord[2]));
+    while(iMelTick < iMeasureTime)
     {
         int iRand = rand();
     
         fluid_event_noteon(ev, 4, iNote, 127);
         fluid_sequencer_send_at(sequencer, ev, iMelTick, 1);
-        iMelTick += ((TICKS)>>3) * ((iRand % 4) + 1); // wait some random amount of beat
+        iMelTick += (iBeats) * ((iRand % 4) + 1); // wait some random amount of beat
         iNoteNum++;
-        printf("%d, %d, note: %s, tick, %d, rand, %d\n", iNoteNum, iNote, printNote(iNote), iMelTick, iRand %12);
+        //printf("%d, %d, note: %s, tick, %d, rand, %d\n", iNoteNum, iNote, printNote(iNote), iMelTick, iRand %12);
         
         
         fluid_event_noteoff(ev, 4, iNote);
@@ -149,7 +148,7 @@ int playMelody(int aChord[3], unsigned int uEndMelody)
             for(iChordNote = 0; iChordNote < 3 && (!bFound); iChordNote++)
             {
                 int bOver = abs((aChord[iChordNote] % 12) - iBaseNote);
-                printf("bOver, %d, ", bOver);
+                //printf("bOver, %d, ", bOver);
                 if (bOver <=2 || bOver >= 10)
                 {
                     iNote = aChord[iChordNote]; // Falling back on the chord note
@@ -167,29 +166,29 @@ int playMelody(int aChord[3], unsigned int uEndMelody)
     return iMelTick;
 }
 
-void playChord(int aChord[3], unsigned int time_marker, int iPlayMelody)
+void playChord(int aChord[3], unsigned int time_marker, int iPlayMelody, int iBeats, int iMeasureTime)
 {
     int iChordNote;
-    int64_t uWait =  (((4 * TICKS) * 1000) + TICKS);
+    int64_t uWait =  iMeasureTime;
     fluid_event_t *ev = new_fluid_event();
     fluid_event_set_source(ev, -1);
     fluid_event_set_dest(ev, synth_destination);
     if(iPlayMelody)
-        uWait = playMelody(aChord, time_marker + (4 * TICKS));
+        uWait = playMelody(aChord, time_marker, iBeats, iMeasureTime);
     for(iChordNote = 0; iChordNote < 3; iChordNote++)
     {
-        fluid_event_noteon(ev, iChordNote, aChord[iChordNote], 30);
+        fluid_event_noteon(ev, iChordNote, aChord[iChordNote], 32);
         fluid_sequencer_send_at(sequencer, ev, time_marker, 1);
         fluid_event_reverb_send(ev, iChordNote, 127);
         fluid_sequencer_send_at(sequencer, ev, time_marker, 1);
 
     }
     delete_fluid_event(ev);
-    usleep((uWait - time_marker) * 1000);
-    printf("chord, %d, %d\n", time_marker,aChord[0]);
+    usleep(uWait);
+    //printf("chord, %d, %d\n", time_marker,aChord[0]);
 }
 
-void playNotesAndChord2(int aChord[3], int bChord[3], int aSleep[3], int bSleep[3])
+void playNotesAndChord2(int aChord[3], int bChord[3], int aSleep[3], int bSleep[3], int TICKS)
 {
     int iArp1;
     fluid_event_t *ev = new_fluid_event();
@@ -256,13 +255,6 @@ void playNotesAndChord2(int aChord[3], int bChord[3], int aSleep[3], int bSleep[
     delete_fluid_event(ev);    
 }
 
-void findCommonTones(int aiChordNew[3], int aiChordOld[3])
-{
-    int aiTemp[3];
-    memcpy(aiTemp, aiChordNew, 3 * sizeof(int));
-    
-}
-
 int main(int argc, char *argv[])
 {
     fluid_settings_t *settings;
@@ -270,7 +262,8 @@ int main(int argc, char *argv[])
     synth = new_fluid_synth(settings);
         /* load a SoundFont */
     int n = fluid_synth_sfload(synth, "default2.sf2", 1);
-    
+    srand(time(NULL));
+
     unsigned int time_marker = 0;
 
     sequencer = new_fluid_sequencer();
@@ -324,8 +317,51 @@ int main(int argc, char *argv[])
     }
     
     {
-        int iChordProg[] = {1-1, 3-1, 2-1, 6-1, 2-1, 5-1, 1-1};
+        //Tempo
+        int iGrandRand = rand();
+        int iBPM = 90 + (iGrandRand % 4)* 10;
+        int iBPMilli = 60000/iBPM;
+        int iBPMeasure = ((rand() % 8) + 4); //Beats per measure At least 4 beats in a measure [4, 12]
+        int iMsrMilli = iBPMeasure * iBPMilli; //Measure time in milliseconds
+        
+        int iNumChrdMvmt = (iGrandRand % 5) + 5;
+        int *aiChordProg = malloc(sizeof(int) * iNumChrdMvmt);//{1-1, 3-1, 2-1, 6-1, 2-1, 5-1, 1-1};
+        
         int iChord;
+        int iPrevChord;
+        int iPrevChordGroup = 0;
+        aiChordProg[0] =  iPrevChord =1 - 1; //Always start with the root chord of the scale
+        aiChordProg[iNumChrdMvmt - 1] = 1 -1; //Always end with the root chord of the scale 
+        aiChordProg[iNumChrdMvmt - 2] = 5 - 1; // Always have the 5th chord of the scale right before the end
+        
+        //Chord grouping, number 9 = N/A, do not use 7th chord
+        int aaiL[4][2] = {{1 - 1, 9}, {3 - 1, 6 - 1}, {2 - 1, 4 - 1}, {5 -1, 9}};
+        //start at 1, and do not do last two chords, all three are already fixed above
+        for(iChord = 1; iChord < iNumChrdMvmt - 2; iChord++)
+        {
+            int iNextGroup = ((iPrevChordGroup + 1) - ((rand() % 4) == 0)) % 4; //Sometimes, stay at the same chord
+            
+            if(aaiL[iNextGroup][1] == 9)
+            {
+                aiChordProg[iChord] = aaiL[iNextGroup][0];
+            }
+            else
+            {
+                aiChordProg[iChord] = aaiL[iNextGroup][rand() % 2];
+            }
+        }
+        
+#if 1
+    {
+        printf("ChordProge, ");
+        for(iChord = 0; iChord < iNumChrdMvmt; iChord++)
+        {
+            printf("%d, ",aiChordProg[iChord]);
+        }
+        printf("\n");
+    }
+#endif
+        
         int iIdx;
         
         int aiRChordPrev[3] = {0};
@@ -333,21 +369,20 @@ int main(int argc, char *argv[])
         int aiChordPrevB[3] = {0};
         
         int aiCreateArpgPattern[3] = {0};
-        srand(time(NULL));
         for(iIdx = 0; iIdx < 3; iIdx++)
         {
             aiCreateArpgPattern[iIdx] = rand() % 8;
         }
         
-        for(iChord = 0; iChord < 7; iChord++)
+        for(iChord = 0; iChord < iNumChrdMvmt; iChord++)
         {
             int aiRootChord[3];
             int aiBassChord[3];
             int aiMelodyChord [3];
             
-            aiRootChord[0] = aaChords[iChordProg[iChord]][0] + MID_C;
-            aiRootChord[1] = aaChords[iChordProg[iChord]][1] + MID_C;
-            aiRootChord[2] = aaChords[iChordProg[iChord]][2] + MID_C;
+            aiRootChord[0] = aaChords[aiChordProg[iChord]][0] + MID_C;
+            aiRootChord[1] = aaChords[aiChordProg[iChord]][1] + MID_C;
+            aiRootChord[2] = aaChords[aiChordProg[iChord]][2] + MID_C;
 
             aiMelodyChord[0] = aiRootChord[0];
             aiMelodyChord[1] = aiRootChord[1];
@@ -360,13 +395,13 @@ int main(int argc, char *argv[])
             //playNotesAndChord2(aiMelodyChord, aiBassChord, aiCreateArpgPattern, aiCreateArpgPattern);
             //playNotesAndChord2(aiMelodyChord, aiBassChord, aiCreateArpgPattern, aiCreateArpgPattern);
             time_marker = fluid_sequencer_get_tick(sequencer);
-            playChord(aiMelodyChord, time_marker, 1);
+            playChord(aiMelodyChord, time_marker, 1, iBPMilli, iMsrMilli);
             
             memcpy(aiChordPrevA, aiMelodyChord, sizeof(int) * 3);
             memcpy(aiChordPrevB, aiBassChord, sizeof(int) * 3);
             memcpy(aiRChordPrev, aiRootChord, sizeof(int) * 3);
         }
-        time_marker = fluid_sequencer_get_tick(sequencer);
+        free(aiChordProg);
     }
     
     while('q' != cInput)
