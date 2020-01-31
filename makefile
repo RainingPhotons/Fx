@@ -1,5 +1,5 @@
 CPP=g++
-CFLAGS=-Wall -g -std=c++11
+CFLAGS=-Wall -g -std=c++11 -Wno-deprecated-declarations
 OBJDIR=obj
 OBJ=$(addprefix $(OBJDIR)/, client.o hsluv.o util.o sound.o)
 
