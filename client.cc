@@ -372,7 +372,8 @@ int main(int c, char **v) {
 
   srand(time(NULL));
 
-  initialize_sound();
+  const char *sound_font_file_name = "default.sf2";
+  initialize_sound(sound_font_file_name);
 
   if (order_strands(host, kStrandCnt) == 0) {
     fprintf(stderr, "Exiting due to ordering file errors.");

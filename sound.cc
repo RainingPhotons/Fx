@@ -1,4 +1,7 @@
+#include "sound.h"
+
 #include <fluidsynth.h>
+#include <SDL/SDL.h>
 
 #define ACT_CHAN 0
 
@@ -8,12 +11,20 @@ static fluid_sequencer_t *sequencer = 0;
 static fluid_settings_t *settings;
 static short synth_destination, client_destination;
 
-int initialize_sound() {
+int initialize_sound(const char *sf_file) {
+  if((SDL_Init(SDL_INIT_AUDIO) == -1)) {
+    fprintf(stderr, "Could not initialize SDL: %s.\n", SDL_GetError());
+    return -1;
+  }
+
   settings = new_fluid_settings();
   synth = new_fluid_synth(settings);
-      /* load a SoundFont */
-  int n = fluid_synth_sfload(synth, "default.sf2", 1);
-
+  /* load a SoundFont */
+  int n = fluid_synth_sfload(synth, sf_file, 1);
+  if (FLUID_FAILED  == n) {
+    fprintf(stderr, "Unable to load SoundFont file (%s)\n", sf_file);
+    return -1;
+  }
   sequencer = new_fluid_sequencer();
   /* register the synth with the sequencer */
   synth_destination = fluid_sequencer_register_fluidsynth(sequencer, synth);
@@ -56,4 +67,5 @@ void destroy_sound() {
   delete_fluid_sequencer(sequencer);
   delete_fluid_synth(synth);
   delete_fluid_settings(settings);
+  SDL_Quit();
 }
