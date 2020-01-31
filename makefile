@@ -1,10 +1,11 @@
 CPP=g++
 CFLAGS=-Wall -g -std=c++11
-OBJ=client.o hsluv.o util.o sound.o
+OBJDIR=obj
+OBJ=$(addprefix $(OBJDIR)/, client.o hsluv.o util.o sound.o)
 
 all: lights
 
-%.o: %.cc
+$(OBJDIR)/%.o: %.cc
 	$(CPP) -c -o $@ $^ $(CFLAGS)
 
 lights: $(OBJ)
@@ -13,4 +14,4 @@ lights: $(OBJ)
 .PHONY: clean
 
 clean:
-	rm -f *.o lights
+	rm -f $(OBJDIR)/*.o lights
