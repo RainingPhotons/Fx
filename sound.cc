@@ -45,7 +45,7 @@ int initialize_sound(const char *sf_file) {
 
   audiodriver = new_fluid_audio_driver(settings, synth);
 
-  return 1;
+  return 0;
 }
 
 void play_note(unsigned int note) {

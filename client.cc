@@ -365,15 +365,30 @@ void compute_strands_ss(int sock) {
   printf("done!\n");
 }
 
-int main(int c, char **v) {
+int main(int argc, char **argv) {
   int sock[kStrandCnt] = {0};
   int host[kStrandCnt] = {0};
   int read_sock = -1;
+  int c;
+  char *sound_font_file_name = nullptr;
+  static char usage[] = "usage: %s [-s name]\n";
+
+  while ((c = getopt(argc, argv, "hs:")) != -1) {
+    switch (c) {
+      case 's':
+        sound_font_file_name = optarg;
+        break;
+      case 'h':
+        fprintf(stderr, usage, argv[0]);
+        return 0;
+    }
+  }
 
   srand(time(NULL));
 
-  const char *sound_font_file_name = "default.sf2";
-  initialize_sound(sound_font_file_name);
+  if (initialize_sound(sound_font_file_name)) {
+    return -1;
+  }
 
   if (order_strands(host, kStrandCnt) == 0) {
     fprintf(stderr, "Exiting due to ordering file errors.");
