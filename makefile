@@ -1,20 +1,19 @@
 CPP=g++
-CFLAGS=-Wall -g -std=c++11
-OBJ=client.o hsluv.o util.o sound.o
-OBJ_PROP=prop.o
+CFLAGS=-Wall -g -std=c++11 -Wno-deprecated-declarations
+OBJDIR=obj
+OBJ=$(addprefix $(OBJDIR)/, client.o hsluv.o util.o sound.o)
+FLUIDSYNTH_PKG=`pkg-config fluidsynth --libs`
+SDL_PKG=`sdl2-config --cflags --libs`
 
-all: lights prop
+all: lights
 
-%.o: %.cc
+$(OBJDIR)/%.o: %.cc
 	$(CPP) -c -o $@ $^ $(CFLAGS)
 
 lights: $(OBJ)
-	$(CPP) -o $@ $^ $(CFLAGS)  `pkg-config fluidsynth --libs` -lpthread
-
-prop: $(OBJ_PROP)
-	$(CPP) -o $@ $^ $(CFLAGS)
+	$(CPP) -o $@ $^ $(CFLAGS) -lpthread $(FLUIDSYNTH_PKG) $(SDL_PKG)
 
 .PHONY: clean
 
 clean:
-	rm -f *.o lights prop
+	rm -f $(OBJDIR)/*.o lights
