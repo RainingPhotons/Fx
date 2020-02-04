@@ -114,8 +114,8 @@ void playNow(unsigned int note)
 
 int playArp(int aChord[3], int iBeats, int iMeasureTime, int iBaseNote, int bMajor)
 {
-    int iSubGroup = (rand()%4) + 3; //Number of notes in this subgroup
-    int iOverRep = (rand() % 3) + 3;
+    int iSubGroup = (rand()%4) + 5; //Number of notes in this subgroup
+    int iOverRep = (rand() % 3) + 2;
     int iSGBeats = iSubGroup;
     int *aiBeatsProg = malloc(sizeof(int) * iSubGroup);//BeatsForEachNote
     int *aiScaleOffProg = malloc(sizeof(int) * iSubGroup);//Offset from base note
@@ -124,11 +124,11 @@ int playArp(int aChord[3], int iBeats, int iMeasureTime, int iBaseNote, int bMaj
         int iBeat;
         for(iBeat = 0; iBeat < iSubGroup; iBeat++)
         {
-            aiBeatsProg[iBeat] =  ((iBeats) * ((rand() % 4) + 0.5));
-            aiScaleOffProg[iBeat] = aChord[iBeat % 3];
+            aiBeatsProg[iBeat] =  iBeats/8;
+            aiScaleOffProg[iBeat] += (rand() %3) - 1;
         }
     }
-    int bOctaveUpDown = 0;
+    int bOctaveUp = 0;
     fluid_event_t *ev = new_fluid_event();
     fluid_event_set_source(ev, -1);
     fluid_event_set_dest(ev, synth_destination);
@@ -140,7 +140,8 @@ int playArp(int aChord[3], int iBeats, int iMeasureTime, int iBaseNote, int bMaj
     {
         for(iSubArp = 0; iSubArp < iSubGroup; iSubArp++)
         {
-            int iModNote = aiScaleOffProg[iSubArp] + ;//((bMajor == ectMajor) ? major_scale[(rand() % 8)] : minor_scale[(rand() % 8)]) + iBaseNote;
+            int iNoteIdx = ((iOverArp * iSubGroup) + iSubArp + aiScaleOffProg[iSubArp]) % 8;
+            int iModNote = ((bMajor == ectMajor) ? major_scale[iNoteIdx] : minor_scale[iNoteIdx]) + iBaseNote + (12 * bOctaveUp);
             fluid_event_noteon(ev, 4, iModNote, 127);
             fluid_sequencer_send_now(sequencer, ev);
             
@@ -148,7 +149,15 @@ int playArp(int aChord[3], int iBeats, int iMeasureTime, int iBaseNote, int bMaj
             fluid_event_noteoff(ev, 4, iModNote);
             fluid_sequencer_send_now(sequencer, ev);
             usleep(aiBeatsProg[iSubArp] * 1000);
+            if(iNoteIdx > 6)
+            {
+                if(bOctaveUp < 2)
+                    bOctaveUp ++;
+                else if (bOctaveUp > 0)
+                    bOctaveUp--;
+            }
         }
+        usleep(iBeats * 500);
     }
 
     free(aiScaleOffProg);
