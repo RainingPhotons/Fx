@@ -114,7 +114,7 @@ void playNow(unsigned int note)
 
 int playArp(int aChord[3], int iOffsetScale[SCALE_NOTES], int iBeats, int iMeasureTime)
 {
-    int iSubGroup = rand()%4 + 3;
+    int iSubGroup = rand()%4 + 3; //Number of notes in this subgroup
     int iOverRep = rand() % 3 + 3;
     int iSGBeats = (iBeats/4) - 3;//Reserve the last three for chord
     unsigned int iMelTick = fluid_sequencer_get_tick(sequencer) + iSGBeats;
@@ -135,17 +135,17 @@ int playArp(int aChord[3], int iOffsetScale[SCALE_NOTES], int iBeats, int iMeasu
             {
                 int iModNote = aChord[iOverArp % 3] + iSubArp;
                 fluid_event_noteon(ev, 4, iModNote, 127);
-                fluid_sequencer_send_at(sequencer, ev, iMelTick, 1);
+                fluid_sequencer_send_now(sequencer, ev);
                 
-                fluid_event_noteon(ev, 4, iModNote, 127);
-                fluid_sequencer_send_at(sequencer, ev, iMelTick, 1);
+                fluid_event_noteoff(ev, 4, iModNote);
+                fluid_sequencer_send_now(sequencer, ev);
                 iMelTick += iSGBeats;
             }
         }
     }
 }
 
-int playMelody(int aChord[3], int iBeats, int iMeasureTime)
+int playMelody(int aChord[3], int iBeats, int iMeasureTime, int iBaseNote, int bMajor)
 {
     fluid_event_t *ev = new_fluid_event();
     fluid_event_set_source(ev, -1);
@@ -164,21 +164,22 @@ int playMelody(int aChord[3], int iBeats, int iMeasureTime)
         int iRand = rand();
         int iModNote = iNote;//Enable for certain instruments + (bOctaveUpDown * 12); //Ocate up or down
         fluid_event_noteon(ev, 4, iModNote, 127);
-        fluid_sequencer_send_at(sequencer, ev, iMelTick, 1);
+        fluid_sequencer_send_now(sequencer, ev);
         
         fluid_event_sustain(ev, 4, 127);
-        fluid_sequencer_send_at(sequencer, ev, iMelTick, 1);
+        fluid_sequencer_send_now(sequencer, ev);
         
-        iMelTick += (unsigned int)((iBeats) * ((iRand % 4) + 0.5)); // wait some random amount of beat
+        int iNoteWait = ((iBeats) * ((iRand % 4) + 0.5)); // wait some random amount of beat ;//+= (unsigned int)
+        iMelTick += iNoteWait;
         iNoteNum++;
         printf("%d, %d, noteNum: %d, note: %s, tick, %d, %d\n", iNoteNum, iModNote, iNote,printNote(iModNote), iMelTick, bOctaveUpDown);
         
-        
+        usleep(iNoteWait * 1000);
         fluid_event_noteoff(ev, 4, iModNote);
-        fluid_sequencer_send_at(sequencer, ev, iMelTick, 1);
+        fluid_sequencer_send_now(sequencer, ev);
         
         if(iNote == aChord[0] || iNote == aChord[1] || iNote == aChord[2])
-            iNote =  major_scale[(iRand & 7)] + MID_C;
+            iNote =  ((bMajor == ectMajor) ? major_scale[(iRand % 8)] : minor_scale[(iRand % 8)]) + iBaseNote;
         else
         {
             int bFound = 0;//Found the closest note
@@ -209,7 +210,7 @@ int playMelody(int aChord[3], int iBeats, int iMeasureTime)
     return iMelTick - iStartTime + iBeats;
 }
 
-void playChord(int aiBassChord[3], int aChord[3], int iPlayMelody, int iBeats, int iMeasureTime)
+void playChord(int aiBassChord[3], int aChord[3], int iPlayMelody, int iBeats, int iMeasureTime, int iBaseNote, int bMajor)
 {
     int iChordNote;
     int64_t uWait =  iMeasureTime;
@@ -217,20 +218,23 @@ void playChord(int aiBassChord[3], int aChord[3], int iPlayMelody, int iBeats, i
     fluid_event_set_source(ev, -1);
     fluid_event_set_dest(ev, synth_destination);
     unsigned int time_marker = fluid_sequencer_get_tick(sequencer);
-    if(iPlayMelody)
-        uWait = playMelody(aChord, iBeats, iMeasureTime);
+    
     for(iChordNote = 0; iChordNote < 3; iChordNote++)
     {
         fluid_event_noteon(ev, 0, aiBassChord[iChordNote], 32);//16 for violin 0-40
-        fluid_sequencer_send_at(sequencer, ev, time_marker, 1);
+        fluid_sequencer_send_now(sequencer, ev);
 //        printf("Base, %d,  %d\n", iNoteToplay, time_marker + iTimePlay);
         fluid_event_reverb_send(ev, 0, 127);
-        fluid_sequencer_send_at(sequencer, ev, time_marker, 1);                
+        fluid_sequencer_send_now(sequencer, ev);                
+    }
+    if(iPlayMelody)
+        uWait = playMelody(aChord, iBeats, iMeasureTime, iBaseNote, bMajor);
+    for(iChordNote = 0; iChordNote < 3; iChordNote++)
+    {
         fluid_event_noteoff(ev, 0, aiBassChord[iChordNote]);
-        fluid_sequencer_send_at(sequencer, ev, time_marker + uWait, 1);// + iTimePlay, 1);
+        fluid_sequencer_send_now(sequencer, ev);// + iTimePlay, 1);
     }
     delete_fluid_event(ev);
-    usleep(uWait * 1000);
     time_marker = fluid_sequencer_get_tick(sequencer);
 }
 
@@ -265,9 +269,10 @@ int main(int argc, char *argv[])
 
     /* get the current time in ticks */
     time_marker = fluid_sequencer_get_tick(sequencer);
-    int iMajMin = 0;//rand() % 2;
+    int iMajMin = ectMajor;//rand() % 2;
     int aaChords[SCALE_NOTES][TRI_CHORD];
     int iKeyOf = 0;//Lowest C
+    int iBaseNote = iKeyOf + MID_C;
     int iKeyNote;
     int iChordNote;
     char cInput = 0;
@@ -381,9 +386,9 @@ int main(int argc, char *argv[])
             int aiBassChord[3];
             int aiMelodyChord [3];
             
-            aiRootChord[0] = aaChords[aiChordProg[iChord]][0] + MID_C;
-            aiRootChord[1] = aaChords[aiChordProg[iChord]][1] + MID_C;
-            aiRootChord[2] = aaChords[aiChordProg[iChord]][2] + MID_C;
+            aiRootChord[0] = aaChords[aiChordProg[iChord]][0] + iBaseNote;
+            aiRootChord[1] = aaChords[aiChordProg[iChord]][1] + iBaseNote;
+            aiRootChord[2] = aaChords[aiChordProg[iChord]][2] + iBaseNote;
 
             aiMelodyChord[0] = aiRootChord[0];
             aiMelodyChord[1] = aiRootChord[1];
@@ -393,7 +398,7 @@ int main(int argc, char *argv[])
             aiBassChord[1] = aiRootChord[0] - 12;
             aiBassChord[2] = aiRootChord[1] - 12;
             
-            playChord(aiBassChord, aiMelodyChord, 1, iBPMilli, iMsrMilli);
+            playChord(aiBassChord, aiMelodyChord, 1, iBPMilli, iMsrMilli, iBaseNote, iMajMin);
             
             memcpy(aiChordPrevA, aiMelodyChord, sizeof(int) * 3);
             memcpy(aiChordPrevB, aiBassChord, sizeof(int) * 3);
