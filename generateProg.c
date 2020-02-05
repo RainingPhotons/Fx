@@ -4,7 +4,54 @@ export LD_LIBRARY_PATH=/usr/local/lib64/
 export PKG_CONFIG_PATH=/usr/local/lib64/pkgconfig
 gcc generateProg.c `pkg-config fluidsynth --libs` -lpthread -g
 */
+pthread_mutex_t m_lock;
+int m_iActive = 0;
 
+//SynthRelated
+fluid_synth_t *synth;
+fluid_audio_driver_t *audiodriver;
+fluid_sequencer_t *sequencer;
+short synth_destination, client_destination;
+fluid_settings_t *settings;
+
+                             
+enum eChordTyoes  {
+    ectMajor = 0,
+    ectMinor = 1,
+    ectDim = 2,
+};
+//Based on C Major                             
+unsigned int major_scale[] = {
+                                      0, //C
+                                      2, //D
+                                      4, //E
+                                      5, //F
+                                      7, //G
+                                      9, //A
+                                      11,//B
+                                      12,//C
+                                      } ;
+
+//Based on A minor
+unsigned int minor_scale[] = { 
+                                      0, //A
+                                      2, //B
+                                      3, //C
+                                      5, //D
+                                      7, //E
+                                      8, //F
+                                      10, //G
+                                      12, //A
+                                      };
+
+//0 = major, 1 = Minor, 2 = Dimnished
+unsigned int major_chord_quality[] = {ectMajor,ectMinor,ectMinor,ectMajor,ectMajor,ectMinor,ectDim,ectMajor};
+unsigned int minor_chord_quality[] = {ectMinor,ectDim,ectMajor,ectMinor,ectMinor,ectMajor,ectMajor,ectMinor};
+
+
+unsigned int major_chord[] = {0, 4, 7};
+unsigned int minor_chord[] = {0, 3, 7};
+unsigned int dimin_chord[]  = {0, 3, 6};
 
 char* printNote(unsigned int note)
 {
@@ -62,60 +109,67 @@ void readEvents(int iStrength)
     pthread_mutex_unlock(&m_lock);
 }
 
-int playArp(int aChord[3], int iBeats, int iMeasureTime, int iBaseNote, int bMajor, int iSubGroup, int iOverRep, int iSGBeats,int *aiBeatsProg, int *aiScaleOffProg)
+int playArp(int aChord[3], int iBeats, int iMeasureTime, int iBaseNote, int bMajor, int iSubGroup, int iOverRep, int iSGBeats,int *aiBeatsProg, int *aiScaleOffProg, int iNoteWait)
 {
-    int iAct = 0;
-    pthread_mutex_lock(&m_lock);
-    iAct = m_iActive;
-    pthread_mutex_unlock(&m_lock);
-    if(iAct == 0)
-        return 0;
-    else if(iAct > 0)
+    int iCurrWait= 0;
+    while(iCurrWait < iNoteWait)
     {
-        int iBeat;
-        memset(aiScaleOffProg, 0, sizeof(int) * iSubGroup);
-        for(iBeat = 0; iBeat < iSubGroup; iBeat++)
-        {
-            aiBeatsProg[iBeat] =  iBeats/8;
-            aiScaleOffProg[iBeat] += (rand() %3) - 1;
-            //printf("iBeats, %d, scale %d\n", iBeat,  aiScaleOffProg[iBeat]);
-        }
-        iAct = MIN(iAct, iSubGroup);
-        int bOctaveUp = 0;
-        fluid_event_t *ev = new_fluid_event();
-        fluid_event_set_source(ev, -1);
-        fluid_event_set_dest(ev, synth_destination);
-
-        //printf("Arp, %s, %s, %s, iSubGroup, %d, iAct, %d\n", printNote(aChord[0]), printNote(aChord[1]), printNote(aChord[2]), iSubGroup, iAct);
-        int iSubArp;
-        int iOverArp;
-        for(iOverArp = 0; iOverArp < iAct; iOverArp++) //iOverRep
-        {
-            for(iSubArp = 0; iSubArp < iSubGroup; iSubArp++)
-            {
-                int iNoteIdx = ((iOverArp * iSubGroup) + iSubArp + aiScaleOffProg[iSubArp]) % 8;
-                //printf("%d, %d, %d\n",(iOverArp * iSubGroup), iSubArp, aiScaleOffProg[iSubArp]);
-                int iModNote = ((bMajor == ectMajor) ? major_scale[iNoteIdx] : minor_scale[iNoteIdx]) + iBaseNote + (12 * bOctaveUp);
-                fluid_event_noteon(ev, 4, iModNote, 127);
-                fluid_sequencer_send_now(sequencer, ev);
-                
-                //printf("OverArp, %d, SubArp, %d, noteIdx, %d, iModNote, %d\n", iOverArp,iSubArp,iNoteIdx, iModNote);
-                fluid_event_noteoff(ev, 4, iModNote);
-                fluid_sequencer_send_now(sequencer, ev);
-                usleep(aiBeatsProg[iSubArp] * 1000);
-                if(iNoteIdx > 6)
-                {
-                    if(bOctaveUp < 2)
-                        bOctaveUp ++;
-                    else if (bOctaveUp > 0)
-                        bOctaveUp--;
-                }
-            }
-            usleep(iBeats * 500);
-        }
+        int iAct = 0;
         pthread_mutex_lock(&m_lock);
-        m_iActive = 0;
+        iAct = m_iActive;
         pthread_mutex_unlock(&m_lock);
+        if(iAct > 0)
+        {
+            int iBeat;
+            memset(aiScaleOffProg, 0, sizeof(int) * iSubGroup);
+            for(iBeat = 0; iBeat < iSubGroup; iBeat++)
+            {
+                aiBeatsProg[iBeat] =  iBeats/8;
+                aiScaleOffProg[iBeat] += 2;
+                //printf("iBeats, %d, scale %d\n", iBeat,  aiScaleOffProg[iBeat]);
+            }
+            iAct = MIN(iAct, iSubGroup);
+            int bOctaveUp = 0;
+            fluid_event_t *ev = new_fluid_event();
+            fluid_event_set_source(ev, -1);
+            fluid_event_set_dest(ev, synth_destination);
+
+            //printf("Arp, %s, %s, %s, iSubGroup, %d, iAct, %d\n", printNote(aChord[0]), printNote(aChord[1]), printNote(aChord[2]), iSubGroup, iAct);
+            int iSubArp;
+            int iOverArp;
+            for(iOverArp = 0; iOverArp < 1; iOverArp++) //iOverRep
+            {
+                for(iSubArp = 0; iSubArp < MIN(iSubGroup, 2); iSubArp++)
+                {
+                    int iNoteIdx = ((iOverArp * iSubGroup) + iSubArp + aiScaleOffProg[iSubArp]) % 8;
+                    //printf("%d, %d, %d\n",(iOverArp * iSubGroup), iSubArp, aiScaleOffProg[iSubArp]);
+                   // int iModNote = ((bMajor == ectMajor) ? major_scale[iNoteIdx] : minor_scale[iNoteIdx]) + iBaseNote + (12 * bOctaveUp);
+                    int iModNote = aChord[iSubArp %3];
+                    fluid_event_noteon(ev, 4, iModNote, 127);
+                    fluid_sequencer_send_now(sequencer, ev);
+                    
+                    //printf("OverArp, %d, SubArp, %d, noteIdx, %d, iModNote, %d\n", iOverArp,iSubArp,iNoteIdx, iModNote);
+                    fluid_event_noteoff(ev, 4, iModNote);
+                    fluid_sequencer_send_now(sequencer, ev);
+                    usleep(aiBeatsProg[iSubArp] * 1000);
+                    if(iNoteIdx > 6)
+                    {
+                        if(bOctaveUp < 2)
+                            bOctaveUp ++;
+                        else if (bOctaveUp > 0)
+                            bOctaveUp--;
+                    }
+                }
+                usleep(iBeats * 500);
+            }
+            pthread_mutex_lock(&m_lock);
+            m_iActive = 0;
+            pthread_mutex_unlock(&m_lock);
+            iAct = 0;
+            return 1;//Move to next
+        }
+        usleep(1000);
+        iCurrWait++;
     }
     return 0;
 }
@@ -138,6 +192,7 @@ int playMelody(int aChord[3], int iBeats, int iMeasureTime, int iBaseNote, int b
     {
         int iRand = rand();
         int iModNote = iNote;//Enable for certain instruments + (bOctaveUpDown * 12); //Ocate up or down
+        int iRet = 0;
         fluid_event_noteon(ev, 4, iModNote, 127);
         fluid_sequencer_send_now(sequencer, ev);
         
@@ -149,12 +204,12 @@ int playMelody(int aChord[3], int iBeats, int iMeasureTime, int iBaseNote, int b
         iNoteNum++;
         //printf("%d, %d, noteNum: %d, note: %s, tick, %d, %d\n", iNoteNum, iModNote, iNote,printNote(iModNote), iMelTick, bOctaveUpDown);
         
-        playArp(aChord, iBeats, iMeasureTime, iBaseNote, bMajor, iSubGroup, iOverRep, iSGBeats,aiBeatsProg, aiScaleOffProg);
+        iRet = playArp(aChord, iBeats, iMeasureTime, iBaseNote, bMajor, iSubGroup, iOverRep, iSGBeats,aiBeatsProg, aiScaleOffProg, iNoteWait);
         
-        usleep(iNoteWait * 1000);
         fluid_event_noteoff(ev, 4, iModNote);
         fluid_sequencer_send_now(sequencer, ev);
-        
+        if(iRet)
+            break; //Move to next chord
         if(iNote == aChord[0] || iNote == aChord[1] || iNote == aChord[2])
             iNote =  ((bMajor == ectMajor) ? major_scale[(iRand % 8)] : minor_scale[(iRand % 8)]) + iBaseNote;
         else
