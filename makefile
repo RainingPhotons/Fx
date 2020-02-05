@@ -1,6 +1,7 @@
 CPP=g++
-C=gcc
-CFLAGS=-Wall -g -std=c++11 -Wno-deprecated-declarations
+CC=gcc
+CFLAGS=-Wall -g
+CPPFLAGS=-Wall -g -std=c++11 -Wno-deprecated-declarations
 OBJDIR=obj
 OBJ=$(addprefix $(OBJDIR)/, client.o hsluv.o util.o generateProg.o)
 MONITOR_OBJ=$(addprefix $(OBJDIR)/, monitor.o util.o)
@@ -10,10 +11,12 @@ SDL_PKG=`sdl2-config --cflags --libs`
 all: lights monitor
 
 $(OBJDIR)/%.o: %.cc
-	$(CPP) -c -o $@ $^ $(CFLAGS)
+	mkdir -p $(@D)
+	$(CPP) -c -o $@ $^ $(CPPFLAGS)
 
 $(OBJDIR)/%.o: %.c
-	$(C) -c -o $@ $^ $(CFLAGS)
+	mkdir -p $(@D)
+	$(CC) -c -o $@ $^ $(CFLAGS)
 
 lights: $(OBJ)
 	$(CPP) -o $@ $^ $(CFLAGS) -lpthread $(FLUIDSYNTH_PKG) $(SDL_PKG)
