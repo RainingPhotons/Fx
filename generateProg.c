@@ -415,8 +415,8 @@ void startMusic()
     pthread_mutex_destroy(&m_lock); 
 }
 
-int main(int argc, char *argv[])
-{
-    startMusic();
-    return 1;
-}
+// int main(int argc, char *argv[])
+// {
+    // startMusic();
+    // return 1;
+// }

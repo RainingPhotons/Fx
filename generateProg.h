@@ -1,3 +1,6 @@
+#ifndef generateProg_h
+#define generateProg_h
+
 #include <stdlib.h>
 #include <stdio.h>
 #include <fluidsynth.h>
@@ -65,3 +68,5 @@ unsigned int dimin_chord[]  = {0, 3, 6};
 
 void readEvents(int iStrength);
 void startMusic();
+
+#endif

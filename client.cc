@@ -12,7 +12,7 @@
 
 #include "util.h"
 #include "hsluv.h"
-#include "sound.h"
+#include "generateProg.h"
 
 static const int kStrandCnt = 20;
 static const int kLEDCnt = 120;
@@ -274,7 +274,7 @@ void setup(double matrix[kStrandCnt][kLEDCnt * 3]) {
 void do_sound() {
   for (int i = 0; i < kStrandCnt; ++i) {
     if (out_of_position[i])
-      play_note(60 + i);
+      readEvents(i);
   }
 }
 
@@ -370,14 +370,10 @@ int main(int argc, char **argv) {
   int host[kStrandCnt] = {0};
   int read_sock = -1;
   int c;
-  char *sound_font_file_name = nullptr;
   static char usage[] = "usage: %s [-s name]\n";
 
   while ((c = getopt(argc, argv, "hs:")) != -1) {
     switch (c) {
-      case 's':
-        sound_font_file_name = optarg;
-        break;
       case 'h':
         fprintf(stderr, usage, argv[0]);
         return 0;
@@ -385,10 +381,6 @@ int main(int argc, char **argv) {
   }
 
   srand(time(NULL));
-
-  if (initialize_sound(sound_font_file_name)) {
-    return -1;
-  }
 
   if (order_strands(host, kStrandCnt) == 0) {
     fprintf(stderr, "Exiting due to ordering file errors.");
@@ -414,6 +406,7 @@ int main(int argc, char **argv) {
   compute_strands_ss(read_sock);
   std::thread thread_read_id(read_strands_thread, read_sock);
 
+  std::thread thread_startMusic(startMusic);
   for (int i = 0; i < kStrandCnt; ++i)
     create_connection_write(host[i], &sock[i], 5000);
 
@@ -424,10 +417,8 @@ int main(int argc, char **argv) {
 
   thread_input_id.join();
   thread_read_id.join();
-
+  thread_startMusic.join();
   close(read_sock);
-
-  destroy_sound();
 
   return 0;
 }
