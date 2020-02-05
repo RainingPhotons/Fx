@@ -5,6 +5,7 @@
 #include <string.h>
 #include <time.h>
 #include <stdint.h>
+#include <pthread.h>
 
 #define SCALE_NOTES 8
 #define TRI_CHORD 3
@@ -17,6 +18,18 @@ export LD_LIBRARY_PATH=/usr/local/lib64/
 export PKG_CONFIG_PATH=/usr/local/lib64/pkgconfig
 gcc generateProg.c `pkg-config fluidsynth --libs` -lpthread -g
 */
+
+pthread_mutex_t m_lock;
+pthread_t m_thread;
+int iActive;
+
+//SynthRelated
+fluid_synth_t *synth;
+fluid_audio_driver_t *audiodriver;
+fluid_sequencer_t *sequencer;
+short synth_destination, client_destination;
+fluid_settings_t *settings;
+
                              
 enum eChordTyoes  {
     ectMajor = 0,
@@ -55,13 +68,6 @@ unsigned int minor_chord_quality[] = {ectMinor,ectDim,ectMajor,ectMinor,ectMinor
 unsigned int major_chord[] = {0, 4, 7};
 unsigned int minor_chord[] = {0, 3, 7};
 unsigned int dimin_chord[]  = {0, 3, 6};
-
-
-//SynthRelated
-fluid_synth_t *synth;
-fluid_audio_driver_t *audiodriver;
-fluid_sequencer_t *sequencer;
-short synth_destination, client_destination;
 
 char* printNote(unsigned int note)
 {
@@ -112,13 +118,16 @@ void playNow(unsigned int note)
     delete_fluid_event(ev);
 }
 
-int playArp(int aChord[3], int iBeats, int iMeasureTime, int iBaseNote, int bMajor)
+void * readNotes(void* arg)
 {
-    int iSubGroup = (rand()%4) + 5; //Number of notes in this subgroup
-    int iOverRep = (rand() % 3) + 2;
-    int iSGBeats = iSubGroup;
-    int *aiBeatsProg = malloc(sizeof(int) * iSubGroup);//BeatsForEachNote
-    int *aiScaleOffProg = malloc(sizeof(int) * iSubGroup);//Offset from base note
+    pthread_mutex_lock(&m_lock);
+    
+    pthread_mutex_unlock(&m_lock);
+    return NULL;
+}
+
+int playArp(int aChord[3], int iBeats, int iMeasureTime, int iBaseNote, int bMajor, int iSubGroup, int iOverRep, int iSGBeats,int *aiBeatsProg, int *aiScaleOffProg)
+{
     //generate beats /wait pattern
     {
         int iBeat;
@@ -159,12 +168,9 @@ int playArp(int aChord[3], int iBeats, int iMeasureTime, int iBaseNote, int bMaj
         }
         usleep(iBeats * 500);
     }
-
-    free(aiScaleOffProg);
-    free (aiBeatsProg);
 }
 
-int playMelody(int aChord[3], int iBeats, int iMeasureTime, int iBaseNote, int bMajor)
+int playMelody(int aChord[3], int iBeats, int iMeasureTime, int iBaseNote, int bMajor, int iSubGroup, int iOverArp,int iSGBeats,int *aiBeatsProg, int *aiScaleOffProg)
 {
     fluid_event_t *ev = new_fluid_event();
     fluid_event_set_source(ev, -1);
@@ -229,15 +235,16 @@ int playMelody(int aChord[3], int iBeats, int iMeasureTime, int iBaseNote, int b
     return iMelTick - iStartTime + iBeats;
 }
 
-void playChord(int aiBassChord[3], int aChord[3], int iPlayMelody, int iBeats, int iMeasureTime, int iBaseNote, int bMajor)
+void playChord(int aiBassChord[3], int aChord[3], int iPlayMelody, int iBeats, int iMeasureTime, int iBaseNote, int bMajor,int iSubGroup, int iOverArp,int iSGBeats,int *aiBeatsProg, int *aiScaleOffProg)
 {
+    
     int iChordNote;
     int64_t uWait =  iMeasureTime;
     fluid_event_t *ev = new_fluid_event();
     fluid_event_set_source(ev, -1);
     fluid_event_set_dest(ev, synth_destination);
     unsigned int time_marker = fluid_sequencer_get_tick(sequencer);
-    
+
     for(iChordNote = 0; iChordNote < 3; iChordNote++)
     {
         fluid_event_noteon(ev, 0, aiBassChord[iChordNote], 32);//16 for violin 0-40
@@ -247,7 +254,7 @@ void playChord(int aiBassChord[3], int aChord[3], int iPlayMelody, int iBeats, i
         fluid_sequencer_send_now(sequencer, ev);                
     }
     if(iPlayMelody)
-        uWait = playMelody(aChord, iBeats, iMeasureTime, iBaseNote, bMajor);
+        uWait = playMelody(aChord, iBeats, iMeasureTime, iBaseNote, bMajor, iSubGroup, iOverArp,iSGBeats,aiBeatsProg,  aiScaleOffProg);
     for(iChordNote = 0; iChordNote < 3; iChordNote++)
     {
         fluid_event_noteoff(ev, 0, aiBassChord[iChordNote]);
@@ -257,14 +264,22 @@ void playChord(int aiBassChord[3], int aChord[3], int iPlayMelody, int iBeats, i
     time_marker = fluid_sequencer_get_tick(sequencer);
 }
 
-
-int main(int argc, char *argv[])
+void startMusic()
 {
-    fluid_settings_t *settings;
     settings = new_fluid_settings();
     synth = new_fluid_synth(settings);
+    
+        //start thread
+    if(0 != pthread_mutex_init(&m_lock,NULL))
+    {
+        printf("Mutex init failed\n");
+    }
+    if(0 != pthread_create(&m_thread, NULL, readNotes, NULL))
+    {
+        printf("Thread create error\n");
+    }
 
-        /* load a SoundFont */
+    /* load a SoundFont */
     int n = fluid_synth_sfload(synth, "default2.sf2", 1);
     srand(time(NULL));
 
@@ -285,6 +300,12 @@ int main(int argc, char *argv[])
     client_destination = fluid_sequencer_register_client(sequencer, "chordsAndStuff", NULL, NULL);
 
     audiodriver = new_fluid_audio_driver(settings, synth);
+
+    int iSubGroup = (rand()%4) + 5; //Number of notes in this subgroup
+    int iOverRep = (rand() % 3) + 2;
+    int iSGBeats = iSubGroup;
+    int *aiBeatsProg = malloc(sizeof(int) * iSubGroup);//BeatsForEachNote
+    int *aiScaleOffProg = malloc(sizeof(int) * iSubGroup);//Offset from base note
 
     /* get the current time in ticks */
     time_marker = fluid_sequencer_get_tick(sequencer);
@@ -341,7 +362,7 @@ int main(int argc, char *argv[])
     {
         //Tempo
         int iGrandRand = rand();
-        int iBPM = 100 + ((iGrandRand % 4)* 10);
+        int iBPM = 110 + ((iGrandRand % 4)* 10);
         int iBPMilli = 60000/iBPM;
         int iBPMeasure = ((rand() % 8) + 4) * 2; //Beats per measure At least 4 beats in a measure [4, 12]
         int iMsrMilli = iBPMeasure * iBPMilli; //Measure time in milliseconds
@@ -417,8 +438,8 @@ int main(int argc, char *argv[])
             aiBassChord[1] = aiRootChord[0] - 12;
             aiBassChord[2] = aiRootChord[1] - 12;
             
-            //playChord(aiBassChord, aiMelodyChord, 1, iBPMilli, iMsrMilli, iBaseNote, iMajMin);
-            playArp(aiMelodyChord, iBPMilli, iMsrMilli,iBaseNote, iMajMin);
+            playChord(aiBassChord, aiMelodyChord, 1, iBPMilli, iMsrMilli, iBaseNote, iMajMin,iSubGroup, iOverRep,iSGBeats,aiBeatsProg, aiScaleOffProg);
+            //playArp(aiMelodyChord, iBPMilli, iMsrMilli,iBaseNote, iMajMin);
             
             memcpy(aiChordPrevA, aiMelodyChord, sizeof(int) * 3);
             memcpy(aiChordPrevB, aiBassChord, sizeof(int) * 3);
@@ -439,6 +460,13 @@ int main(int argc, char *argv[])
     delete_fluid_sequencer(sequencer);
     delete_fluid_synth(synth);
     delete_fluid_settings(settings);
+    free(aiScaleOffProg);
+    free (aiBeatsProg);
 
+}
+
+int main(int argc, char *argv[])
+{
+    startMusic();
     return 1;
 }
