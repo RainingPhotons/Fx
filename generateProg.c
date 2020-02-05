@@ -154,7 +154,7 @@ int playArp(int aChord[3], int iBeats, int iMeasureTime, int iBaseNote, int bMaj
                    {
                        if(am_iActive[iStrand] > 0)
                        {
-                        int iModNote = (aChord[iSubArp %3] -12) + ((iStrand/5) * 12);
+                        int iModNote = (aChord[iSubArp %3] -24) + ((iStrand/4) * 12);
                         fluid_event_noteon(ev, 4, iModNote, 127);
                         fluid_sequencer_send_now(sequencer, ev);
                         
