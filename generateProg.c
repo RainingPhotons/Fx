@@ -21,7 +21,7 @@ gcc generateProg.c `pkg-config fluidsynth --libs` -lpthread -g
 
 pthread_mutex_t m_lock;
 pthread_t m_thread;
-int iActive;
+int iActive = 0;
 
 //SynthRelated
 fluid_synth_t *synth;
@@ -128,7 +128,11 @@ void * readNotes(void* arg)
 
 int playArp(int aChord[3], int iBeats, int iMeasureTime, int iBaseNote, int bMajor, int iSubGroup, int iOverRep, int iSGBeats,int *aiBeatsProg, int *aiScaleOffProg)
 {
-    //generate beats /wait pattern
+    int iAct = 0;
+    pthread_mutex_lock(&m_lock);
+    iAct = iActive;
+    pthread_mutex_unlock(&m_lock);
+    if(0 != iAct)
     {
         int iBeat;
         for(iBeat = 0; iBeat < iSubGroup; iBeat++)
@@ -136,41 +140,43 @@ int playArp(int aChord[3], int iBeats, int iMeasureTime, int iBaseNote, int bMaj
             aiBeatsProg[iBeat] =  iBeats/8;
             aiScaleOffProg[iBeat] += (rand() %3) - 1;
         }
-    }
-    int bOctaveUp = 0;
-    fluid_event_t *ev = new_fluid_event();
-    fluid_event_set_source(ev, -1);
-    fluid_event_set_dest(ev, synth_destination);
+        
+        int bOctaveUp = 0;
+        fluid_event_t *ev = new_fluid_event();
+        fluid_event_set_source(ev, -1);
+        fluid_event_set_dest(ev, synth_destination);
 
-    printf("Arp, %s, %s, %s, iSubGroup, %d, iOverArp, %d\n", printNote(aChord[0]), printNote(aChord[1]), printNote(aChord[2]), iSubGroup, iOverRep);
-    int iSubArp;
-    int iOverArp;
-    for(iOverArp = 0; iOverArp < iOverRep; iOverArp++)
-    {
-        for(iSubArp = 0; iSubArp < iSubGroup; iSubArp++)
+        printf("Arp, %s, %s, %s, iSubGroup, %d, iOverArp, %d\n", printNote(aChord[0]), printNote(aChord[1]), printNote(aChord[2]), iSubGroup, iOverRep);
+        int iSubArp;
+        int iOverArp;
+        for(iOverArp = 0; iOverArp < iOverRep; iOverArp++)
         {
-            int iNoteIdx = ((iOverArp * iSubGroup) + iSubArp + aiScaleOffProg[iSubArp]) % 8;
-            int iModNote = ((bMajor == ectMajor) ? major_scale[iNoteIdx] : minor_scale[iNoteIdx]) + iBaseNote + (12 * bOctaveUp);
-            fluid_event_noteon(ev, 4, iModNote, 127);
-            fluid_sequencer_send_now(sequencer, ev);
-            
-            printf("OverArp, %d, SubArp, %d, iModNote, %d\n", iOverArp,iSubArp, iModNote);
-            fluid_event_noteoff(ev, 4, iModNote);
-            fluid_sequencer_send_now(sequencer, ev);
-            usleep(aiBeatsProg[iSubArp] * 1000);
-            if(iNoteIdx > 6)
+            for(iSubArp = 0; iSubArp < iSubGroup; iSubArp++)
             {
-                if(bOctaveUp < 2)
-                    bOctaveUp ++;
-                else if (bOctaveUp > 0)
-                    bOctaveUp--;
+                int iNoteIdx = ((iOverArp * iSubGroup) + iSubArp + aiScaleOffProg[iSubArp]) % 8;
+                int iModNote = ((bMajor == ectMajor) ? major_scale[iNoteIdx] : minor_scale[iNoteIdx]) + iBaseNote + (12 * bOctaveUp);
+                fluid_event_noteon(ev, 4, iModNote, 127);
+                fluid_sequencer_send_now(sequencer, ev);
+                
+                printf("OverArp, %d, SubArp, %d, iModNote, %d\n", iOverArp,iSubArp, iModNote);
+                fluid_event_noteoff(ev, 4, iModNote);
+                fluid_sequencer_send_now(sequencer, ev);
+                usleep(aiBeatsProg[iSubArp] * 1000);
+                if(iNoteIdx > 6)
+                {
+                    if(bOctaveUp < 2)
+                        bOctaveUp ++;
+                    else if (bOctaveUp > 0)
+                        bOctaveUp--;
+                }
             }
+            usleep(iBeats * 500);
         }
-        usleep(iBeats * 500);
     }
+    return 0;
 }
 
-int playMelody(int aChord[3], int iBeats, int iMeasureTime, int iBaseNote, int bMajor, int iSubGroup, int iOverArp,int iSGBeats,int *aiBeatsProg, int *aiScaleOffProg)
+int playMelody(int aChord[3], int iBeats, int iMeasureTime, int iBaseNote, int bMajor, int iSubGroup, int iOverRep,int iSGBeats,int *aiBeatsProg, int *aiScaleOffProg)
 {
     fluid_event_t *ev = new_fluid_event();
     fluid_event_set_source(ev, -1);
@@ -198,6 +204,8 @@ int playMelody(int aChord[3], int iBeats, int iMeasureTime, int iBaseNote, int b
         iMelTick += iNoteWait;
         iNoteNum++;
         printf("%d, %d, noteNum: %d, note: %s, tick, %d, %d\n", iNoteNum, iModNote, iNote,printNote(iModNote), iMelTick, bOctaveUpDown);
+        
+        playArp(aChord, iBeats, iMeasureTime, iBaseNote, bMajor, iSubGroup, iOverRep, iSGBeats,aiBeatsProg, aiScaleOffProg);
         
         usleep(iNoteWait * 1000);
         fluid_event_noteoff(ev, 4, iModNote);
@@ -235,7 +243,7 @@ int playMelody(int aChord[3], int iBeats, int iMeasureTime, int iBaseNote, int b
     return iMelTick - iStartTime + iBeats;
 }
 
-void playChord(int aiBassChord[3], int aChord[3], int iPlayMelody, int iBeats, int iMeasureTime, int iBaseNote, int bMajor,int iSubGroup, int iOverArp,int iSGBeats,int *aiBeatsProg, int *aiScaleOffProg)
+void playChord(int aiBassChord[3], int aChord[3], int iPlayMelody, int iBeats, int iMeasureTime, int iBaseNote, int bMajor,int iSubGroup, int iOverRep,int iSGBeats,int *aiBeatsProg, int *aiScaleOffProg)
 {
     
     int iChordNote;
@@ -254,7 +262,7 @@ void playChord(int aiBassChord[3], int aChord[3], int iPlayMelody, int iBeats, i
         fluid_sequencer_send_now(sequencer, ev);                
     }
     if(iPlayMelody)
-        uWait = playMelody(aChord, iBeats, iMeasureTime, iBaseNote, bMajor, iSubGroup, iOverArp,iSGBeats,aiBeatsProg,  aiScaleOffProg);
+        uWait = playMelody(aChord, iBeats, iMeasureTime, iBaseNote, bMajor, iSubGroup, iOverRep,iSGBeats,aiBeatsProg,  aiScaleOffProg);
     for(iChordNote = 0; iChordNote < 3; iChordNote++)
     {
         fluid_event_noteoff(ev, 0, aiBassChord[iChordNote]);
@@ -362,7 +370,7 @@ void startMusic()
     {
         //Tempo
         int iGrandRand = rand();
-        int iBPM = 110 + ((iGrandRand % 4)* 10);
+        int iBPM = 120 + ((iGrandRand % 4)* 10);
         int iBPMilli = 60000/iBPM;
         int iBPMeasure = ((rand() % 8) + 4) * 2; //Beats per measure At least 4 beats in a measure [4, 12]
         int iMsrMilli = iBPMeasure * iBPMilli; //Measure time in milliseconds
@@ -438,8 +446,8 @@ void startMusic()
             aiBassChord[1] = aiRootChord[0] - 12;
             aiBassChord[2] = aiRootChord[1] - 12;
             
-            playChord(aiBassChord, aiMelodyChord, 1, iBPMilli, iMsrMilli, iBaseNote, iMajMin,iSubGroup, iOverRep,iSGBeats,aiBeatsProg, aiScaleOffProg);
-            //playArp(aiMelodyChord, iBPMilli, iMsrMilli,iBaseNote, iMajMin);
+            //playChord(aiBassChord, aiMelodyChord, 1, iBPMilli, iMsrMilli, iBaseNote, iMajMin,iSubGroup, iOverRep,iSGBeats,aiBeatsProg, aiScaleOffProg);
+            playArp(aiMelodyChord, iBPMilli, iMsrMilli,iBaseNote, iMajMin,iSubGroup, iOverRep,iSGBeats,aiBeatsProg, aiScaleOffProg);
             
             memcpy(aiChordPrevA, aiMelodyChord, sizeof(int) * 3);
             memcpy(aiChordPrevB, aiBassChord, sizeof(int) * 3);
