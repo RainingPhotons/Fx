@@ -5,7 +5,7 @@ export PKG_CONFIG_PATH=/usr/local/lib64/pkgconfig
 gcc generateProg.c `pkg-config fluidsynth --libs` -lpthread -g
 */
 pthread_mutex_t m_lock;
-int m_iActive = 0;
+int am_iActive[20] = {0};
 
 //SynthRelated
 fluid_synth_t *synth;
@@ -105,20 +105,25 @@ void playNow(unsigned int note)
 void readEvents(int iStrength)
 {
     pthread_mutex_lock(&m_lock);
-    m_iActive = iStrength;
+    am_iActive[MIN(19, iStrength)] = 1;
     pthread_mutex_unlock(&m_lock);
 }
 
 int playArp(int aChord[3], int iBeats, int iMeasureTime, int iBaseNote, int bMajor, int iSubGroup, int iOverRep, int iSGBeats,int *aiBeatsProg, int *aiScaleOffProg, int iNoteWait)
 {
     int iCurrWait= 0;
+    int iStrand;
     while(iCurrWait < iNoteWait)
     {
-        int iAct = 0;
+        int iAct = -1;
         pthread_mutex_lock(&m_lock);
-        iAct = m_iActive;
+        for(iStrand = 0; iStrand < 20; iStrand++)
+       {
+           iAct += am_iActive[iStrand];
+       }
         pthread_mutex_unlock(&m_lock);
-        if(iAct > 0)
+        
+        if(iAct > -1)//A strand is active
         {
             int iBeat;
             memset(aiScaleOffProg, 0, sizeof(int) * iSubGroup);
@@ -139,18 +144,25 @@ int playArp(int aChord[3], int iBeats, int iMeasureTime, int iBaseNote, int bMaj
             int iOverArp;
             for(iOverArp = 0; iOverArp < 1; iOverArp++) //iOverRep
             {
-                for(iSubArp = 0; iSubArp < MIN(iSubGroup, 2); iSubArp++)
+                for(iSubArp = 0; iSubArp < iSubGroup; iSubArp++)
                 {
                     int iNoteIdx = ((iOverArp * iSubGroup) + iSubArp + aiScaleOffProg[iSubArp]) % 8;
-                    //printf("%d, %d, %d\n",(iOverArp * iSubGroup), iSubArp, aiScaleOffProg[iSubArp]);
+//                    printf("%d, %d, %d\n",(iOverArp * iSubGroup), iSubArp, aiScaleOffProg[iSubArp]);
                    // int iModNote = ((bMajor == ectMajor) ? major_scale[iNoteIdx] : minor_scale[iNoteIdx]) + iBaseNote + (12 * bOctaveUp);
-                    int iModNote = aChord[iSubArp %3];
-                    fluid_event_noteon(ev, 4, iModNote, 127);
-                    fluid_sequencer_send_now(sequencer, ev);
-                    
-                    //printf("OverArp, %d, SubArp, %d, noteIdx, %d, iModNote, %d\n", iOverArp,iSubArp,iNoteIdx, iModNote);
-                    fluid_event_noteoff(ev, 4, iModNote);
-                    fluid_sequencer_send_now(sequencer, ev);
+                   int iStrand;
+                   for(iStrand = 0; iStrand < 20; iStrand++)
+                   {
+                       if(am_iActive[iStrand] > 0)
+                       {
+                        int iModNote = (aChord[iSubArp %3] -12) + ((iStrand/5) * 12);
+                        fluid_event_noteon(ev, 4, iModNote, 127);
+                        fluid_sequencer_send_now(sequencer, ev);
+                        
+//                        printf("OverArp, %d, SubArp, %d, noteIdx, %d, iModNote, %d\n", iOverArp,iSubArp,iNoteIdx, iModNote);
+                        fluid_event_noteoff(ev, 4, iModNote);
+                        fluid_sequencer_send_now(sequencer, ev);
+                       }
+                   }
                     usleep(aiBeatsProg[iSubArp] * 1000);
                     if(iNoteIdx > 6)
                     {
@@ -163,9 +175,12 @@ int playArp(int aChord[3], int iBeats, int iMeasureTime, int iBaseNote, int bMaj
                 usleep(iBeats * 500);
             }
             pthread_mutex_lock(&m_lock);
-            m_iActive = 0;
+            for(iStrand = 0; iStrand < 20; iStrand++)
+           {
+               am_iActive[iStrand] = 0;
+           }
             pthread_mutex_unlock(&m_lock);
-            iAct = 0;
+            iAct = -1;
             return 1;//Move to next
         }
         usleep(1000);
