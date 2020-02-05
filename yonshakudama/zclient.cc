@@ -166,47 +166,140 @@ void fadeToBlack(char *leds, int num, char fadeValue) {
 }
 
 void firework(char matrix[kStrandCnt][kLEDCnt * 3])  {
-  int meteorTrailDecay = 64;
-  int meteorRandomDecay = 1;
-  int meteorSize = 10;
-
-  if (do_firework) {
-
-    for (int j = 0; j < kLEDCnt; ++j) {
-      //for (int i =0; i < kStrandCnt; ++i)  {
-        i = 10;
-        matrix[i][j *3 + 0] = 0x0;
-        matrix[i][j *3 + 1] = 0x0;
-        matrix[i][j *3 + 2] = 0x0;
-      //}
+  static int step = kLEDCnt;
+  const int kFireworkTail = 6;
+  static int col = 10;
+  static int height = 80;
+  static int diff = kLEDCnt - height;
+  static volatile bool exploded = false;
+  //static int step = height; 
+  
+  printf ("Firework enabled: \n");
+  if (do_firework){
+    //if step number is greater than the ** WOrk on this 
+    if (step >= diff){
+      for (int i=0; i<height;  ++i)
+        matrix[col][(step-1)-1] = 1;
+    matrix[col][((step-1) * 3) + 0] = 12; // should be 128
+    matrix[col][((step-1) * 3) + 1] = 128;
+    matrix[col][((step-1) * 3) + 2] = 128;
     }
 
-      for (int j = kLEDCnt + kLEDCnt; j > 0; --j) { 
-      //for (int j = 0; j < kLEDCnt + kLEDCnt; ++j) {
-        //for (int i = 0; i < kStrandCnt; ++i) {
-          int i = 10;
-          for (int k = kLEDCnt-1; k >= 0; --k) {
-          //for (int k = 0; k < kLEDCnt; ++k) {
-            if ((!meteorRandomDecay) || ((rand() % 10) > 5)) {
-              fadeToBlack(matrix[i], k, meteorTrailDecay);
-            }
-          }
+    //printf("%c ", matrix[3][step * 3]);
+    //printf("%c ", matrix[3][(step * 3 + 1)]);
+    //printf("%d ", matrix[3][(step * 3 + 2)]);
 
-          //for (int k = 0; k < meteorSize; ++k) {
-            for (int k = 0; k < meteorSize; ++k) {
-
-            if ((j - k < kLEDCnt) && (j - k >= 0)) {
-              matrix[i][(j - k) * 3 + 0] = 0x00;
-              matrix[i][(j - k) * 3 + 1] = 0x00;
-              matrix[i][(j - k) * 3 + 2] = 0xdd;
-              //fprintf(stderr, "k,%d\n", (j - k) * 3 + 1);
-            }
-          }
-        //}
+    if (((step + kFireworkTail) <= (kLEDCnt - 1))){
+      //printf ("Firework Tail enabled\n");
+      //matrix[col][(((step-1) *3) + 0 + kFireworkTail)] = 0;
+      //matrix[col][(((step-1) *3) + 1 + kFireworkTail)] = 0;
+      //matrix[col][(((step-1) *3) + 2 + kFireworkTail)] = 0;
+      matrix[col][((step + kFireworkTail) * 3) + 0] = 0;
+      matrix[col][((step + kFireworkTail) * 3) + 1] = 0;
+      matrix[col][((step + kFireworkTail) * 3) + 2] = 0;
+    
+    if (step == 0){
+      //int rmtail = kFireworkTail;
+      for (int i =kFireworkTail; i >= 0; --i){
+        matrix[col][(i * 3) +0] = 0;
+        matrix[col][(i * 3) +1] = 0;
+        matrix[col][(i * 3) +2] = 0;
       }
     }
-}
 
+    // Exploded section
+    if (step == diff){ //2
+      matrix[col][((step-1) * 3) + 0] = 200; 
+      matrix[col][((step-1) * 3) + 1] = 200;
+      matrix[col][((step-1) * 3) + 2] = 200;
+      exploded = true;
+    }
+
+    if (exploded == true){
+      //left explode
+      int distance = 10;
+      int sleeptime = 20000;
+      // left horizontal
+      for ( int i = 0; i < distance; ++i){
+        if (col - i >= 0){
+          matrix[col-i][(step * 3) + 0] = 200;
+          matrix[col-i][(step * 3) + 1] = 200;
+          matrix[col-i][(step * 3) + 2] = 200;
+          usleep(sleeptime);
+        }
+        // right horizontal
+        if(col + i <= kStrandCnt){
+          matrix[col+i][(step * 3) + 0] = 200;
+          matrix[col+i][(step * 3) + 1] = 200;
+          matrix[col+i][(step * 3) + 2] = 200;
+          usleep(sleeptime);
+        }
+        // upward
+        if(height + i <= kLEDCnt){
+          matrix[col][((step + i) *3) + 0] =200;
+          matrix[col][((step + i) *3) + 1] =200;
+          matrix[col][((step + i) *3) + 2] =200;
+          usleep(sleeptime);
+
+        }
+        // downward
+        if(height-i >=0){
+          matrix[col][((step - i) *3) + 0] =200;
+          matrix[col][((step - i) *3) + 1] =200;
+          matrix[col][((step - i) *3) + 2] =200;
+          usleep(sleeptime);
+        }
+        //diagonal right up
+        if((col +i <= kStrandCnt) && (height+i <= kLEDCnt)){
+          matrix[col+i][((step - 2 - i) *3) + 0] =200;
+          matrix[col+i][((step - 2 - i) *3) + 1] =200;
+          matrix[col+i][((step - 2 - i) *3) + 2] =200;
+          usleep(sleeptime);
+        }
+        //diagonal right down
+        if((col +i <= kStrandCnt) && (height+i <= kLEDCnt)){
+          matrix[col+i][((step + 2 + i) *3) + 0] =200;
+          matrix[col+i][((step + 2 + i) *3) + 1] =200;
+          matrix[col+i][((step + 2 + i) *3) + 2] =200;
+          usleep(sleeptime);
+        }
+        //diagonal left down
+        if((col - i >= 0) && (height-i >= 0)){
+          matrix[col-i][((step - 2 - i) *3) + 0] =200;
+          matrix[col-i][((step - 2 - i) *3) + 1] =200;
+          matrix[col-i][((step - 2 - i) *3) + 2] =200;
+          usleep(sleeptime);
+        }
+        //diagonal left up
+        if((col - i >= 0) && (height+i <= kLEDCnt)){
+          matrix[col-i][((step + 2 + i) *3) + 0] =200;
+          matrix[col-i][((step + 2 + i) *3) + 1] =200;
+          matrix[col-i][((step + 2 + i) *3) + 2] =200;
+          usleep(sleeptime);
+        }
+      }
+    exploded = false;
+    
+    }
+      usleep(2000);
+    }
+      printf("Step: %i\n", step);
+  
+    if (step-- < 1) {
+      step = kLEDCnt;
+      printf("End of loop: Step: %i\n", step);
+      for (int i = 0; i < kStrandCnt; ++i) {
+        for (int j = 0; j < kLEDCnt; ++j) {
+          matrix[i][(j * 3) + 0] =0;
+          matrix[i][(j * 3) + 1] =0;
+          matrix[i][(j * 3) + 2] =0;
+        }
+      }
+      sleep(1);
+    }
+      
+  }
+}
 
 void display_comet_rl(char matrix[kStrandCnt][kLEDCnt * 3]) {
   const int kCometTail = 10;
